@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2023 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -1069,12 +1069,42 @@ public abstract class ASTNode {
 
 	/**
 	 * Node type constant indicating a node of type
-	 * <code>EnhancedForWithRecordPattern</code>.
-	 * @see EnhancedForWithRecordPattern
-	 * @since 3.34
+	 * <code>StringTemplateExpression</code>.
+	 * @see org.eclipse.jdt.internal.compiler.ast.TemplateExpression
+	 * @since 3.37
 	 * @noreference This field is not intended to be referenced by clients.
 	 */
-	public static final int ENHANCED_FOR_WITH_RECORD_PATTERN = 114;
+	public static final int STRING_TEMPLATE_EXPRESSION = 114;
+	/**
+	 * Node type constant indicating a node of type
+	 * <code>StringFragment</code>.
+	 * @see org.eclipse.jdt.internal.compiler.ast.StringLiteral
+	 * @since 3.37
+	 * @noreference This field is not intended to be referenced by clients.
+	 */
+	public static final int STRING_FRAGMENT = 115;
+	/**
+	 * Node type constant indicating a node of type
+	 * <code>StringTemplateComponent</code>.
+	 * @since 3.37
+	 * @noreference This field is not intended to be referenced by clients.
+	 */
+	public static final int STRING_TEMPLATE_COMPONENT = 116;
+
+	/**
+	 * Node type constant indicating a node of type
+	 * <code>EitherOrMultiPattern</code>.
+	 * @since 3.38
+	 * @noreference This field is not intended to be referenced by clients.
+	 */
+	public static final int EitherOr_MultiPattern = 117;
+
+	/**
+	 * @see ImplicitTypeDeclaration
+	 * @since 3.38
+	 * @noreference This field is not intended to be referenced by clients.
+	 */
+	public static final int UNNAMED_CLASS = 118;
 
 	/**
 	 * Returns the node class for the corresponding node type.
@@ -1142,8 +1172,6 @@ public abstract class ASTNode {
 				return EmptyStatement.class;
 			case ENHANCED_FOR_STATEMENT :
 				return EnhancedForStatement.class;
-			case ENHANCED_FOR_WITH_RECORD_PATTERN :
-				return EnhancedForWithRecordPattern.class;
 			case ENUM_CONSTANT_DECLARATION :
 				return EnumConstantDeclaration.class;
 			case ENUM_DECLARATION :
@@ -1316,6 +1344,16 @@ public abstract class ASTNode {
 				return WildcardType.class;
 			case YIELD_STATEMENT :
 				return YieldStatement.class;
+			case STRING_TEMPLATE_EXPRESSION :
+				return StringTemplateExpression.class;
+			case STRING_FRAGMENT :
+				return StringFragment.class;
+			case STRING_TEMPLATE_COMPONENT :
+				return StringTemplateComponent.class;
+			case EitherOr_MultiPattern:
+				return EitherOrMultiPattern.class;
+			case UNNAMED_CLASS :
+				return ImplicitTypeDeclaration.class;
 		}
 		throw new IllegalArgumentException();
 	}
@@ -1720,8 +1758,8 @@ public abstract class ASTNode {
 				// there are no cursors to worry about
 				return;
 			}
-			for (Iterator it = this.cursors.iterator(); it.hasNext(); ) {
-				Cursor c = (Cursor) it.next();
+			for (Object cursor : this.cursors) {
+				Cursor c = (Cursor) cursor;
 				c.update(index, delta);
 			}
 		}
@@ -1756,8 +1794,8 @@ public abstract class ASTNode {
 		 */
 		int listSize() {
 			int result = memSize();
-			for (Iterator it = iterator(); it.hasNext(); ) {
-				ASTNode child = (ASTNode) it.next();
+			for (Object o : this) {
+				ASTNode child = (ASTNode) o;
 				result += child.treeSize();
 			}
 			return result;
@@ -1819,6 +1857,7 @@ public abstract class ASTNode {
 	 * Returns the location of this node within its parent,
 	 * or <code>null</code> if this is a root node.
 	 * <pre>
+	 * {@code
 	 * ASTNode node = ...;
 	 * ASTNode parent = node.getParent();
 	 * StructuralPropertyDescriptor location = node.getLocationInParent();
@@ -1827,6 +1866,7 @@ public abstract class ASTNode {
 	 *    assert parent.getStructuralProperty(location) == node;
 	 * if ((location != null) && location.isChildListProperty())
 	 *    assert ((List) parent.getStructuralProperty(location)).contains(node);
+	 * }
 	 * </pre>
 	 * <p>
 	 * Note that the relationship between an AST node and its parent node
@@ -2045,7 +2085,7 @@ public abstract class ASTNode {
 	 * @since 3.0
 	 */
 	List internalGetChildListProperty(ChildListPropertyDescriptor property) {
-		throw new RuntimeException("Node does not have this property");  //$NON-NLS-1$
+		throw new RuntimeException("Node does not have this property" + property.toString());  //$NON-NLS-1$
 	}
 
 	/**
@@ -2545,6 +2585,36 @@ public abstract class ASTNode {
 	final void supportedOnlyIn21() {
 		if (this.ast.apiLevel < AST.JLS21_INTERNAL) {
 			throw new UnsupportedOperationException("Operation only supported in JLS21 AST"); //$NON-NLS-1$
+		}
+	}
+	/**
+ 	 * Checks that this AST operation is only used when
+     * building JLS22 level ASTs.
+     * <p>
+     * Use this method to prevent access to new properties available only in JLS22.
+     * </p>
+     *
+	 * @exception UnsupportedOperationException if this operation is not used in JLS22
+	 * @since 3.37
+	 */
+	final void supportedOnlyIn22() {
+		if (this.ast.apiLevel < AST.JLS22_INTERNAL) {
+			throw new UnsupportedOperationException("Operation only supported in JLS22 AST"); //$NON-NLS-1$
+		}
+	}
+	/**
+ 	 * Checks that this AST operation is only used when
+     * building JLS23 level ASTs.
+     * <p>
+     * Use this method to prevent access to new properties available only in JLS23.
+     * </p>
+     *
+	 * @exception UnsupportedOperationException if this operation is not used in JLS23
+	 * @since 3.38
+	 */
+	final void supportedOnlyIn23() {
+		if (this.ast.apiLevel < AST.JLS23_INTERNAL) {
+			throw new UnsupportedOperationException("Operation only supported in JLS23 AST"); //$NON-NLS-1$
 		}
 	}
 	/**
@@ -3186,8 +3256,8 @@ public abstract class ASTNode {
 	 */
 	public static List copySubtrees(AST target, List nodes) {
 		List result = new ArrayList(nodes.size());
-		for (Iterator it = nodes.iterator(); it.hasNext(); ) {
-			ASTNode oldNode = (ASTNode) it.next();
+		for (Object node : nodes) {
+			ASTNode oldNode = (ASTNode) node;
 			ASTNode newNode = oldNode.clone(target);
 			result.add(newNode);
 		}
@@ -3420,7 +3490,7 @@ public abstract class ASTNode {
 	 */
 	@Override
 	public final String toString() {
-		StringBuffer buffer = new StringBuffer();
+		StringBuilder buffer = new StringBuilder();
 		int p = buffer.length();
 		try {
 			appendDebugString(buffer);
@@ -3453,7 +3523,7 @@ public abstract class ASTNode {
 	 *
 	 * @param buffer the string buffer to append to
 	 */
-	void appendDebugString(StringBuffer buffer) {
+	void appendDebugString(StringBuilder buffer) {
 		// print the subtree by default
 		appendPrintString(buffer);
 	}
@@ -3464,7 +3534,7 @@ public abstract class ASTNode {
 	 *
 	 * @param buffer the string buffer to append to
 	 */
-	final void appendPrintString(StringBuffer buffer) {
+	final void appendPrintString(StringBuilder buffer) {
 		NaiveASTFlattener printer = new NaiveASTFlattener();
 		accept(printer);
 		buffer.append(printer.getResult());

@@ -38,8 +38,8 @@ public class IntersectionCastTypeReference extends TypeReference {
 		this.sourceStart = typeReferences[0].sourceStart;
 		int length = typeReferences.length;
 		this.sourceEnd = typeReferences[length - 1].sourceEnd;
-		for (int i = 0, max = typeReferences.length; i < max; i++) {
-			if ((typeReferences[i].bits & ASTNode.HasTypeAnnotations) != 0) {
+		for (TypeReference reference : typeReferences) {
+			if ((reference.bits & ASTNode.HasTypeAnnotations) != 0) {
 				this.bits |= ASTNode.HasTypeAnnotations;
 				break;
 			}
@@ -181,7 +181,7 @@ public class IntersectionCastTypeReference extends TypeReference {
 	}
 
 	@Override
-	public StringBuffer printExpression(int indent, StringBuffer output) {
+	public StringBuilder printExpression(int indent, StringBuilder output) {
 		int length = this.typeReferences == null ? 0 : this.typeReferences.length;
 		printIndent(indent, output);
 		for (int i = 0; i < length; i++) {

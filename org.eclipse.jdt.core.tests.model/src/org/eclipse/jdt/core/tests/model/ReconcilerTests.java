@@ -1371,8 +1371,8 @@ public void testChangeExternalJar() throws CoreException, IOException {
 	}
 }
 /**
- * @bug 162621: [model][delta] Validation errors do not clear after replacing jar file
- * @test Ensures that changing an internal jar and refreshing takes the change into account
+ * bug 162621: [model][delta] Validation errors do not clear after replacing jar file
+ * test Ensures that changing an internal jar and refreshing takes the change into account
  * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=162621"
  */
 public void testChangeInternalJar() throws CoreException, IOException {
@@ -3611,7 +3611,7 @@ public void testBug60689() throws JavaModelException {
 		"	/**\n" +
 		"	 * Returns the length of the string representing the number of \n" +
 		"	 * indents in the given string <code>line</code>. Returns \n" +
-		"	 * <code>-1<code> if the line isn't prefixed with an indent of\n" +
+		"	 * <code>-1</code> if the line isn't prefixed with an indent of\n" +
 		"	 * the given number of indents. \n" +
 		"	 */\n" +
 		"	public static int computeIndentLength(String line, int numberOfIndents, int tabWidth) {\n" +

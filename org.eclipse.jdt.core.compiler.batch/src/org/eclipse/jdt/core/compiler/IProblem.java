@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2023 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -353,7 +353,7 @@ void setSourceStart(int sourceStart);
 	/**
 	 * Problem Categories
 	 * The high bits of a problem ID contains information about the category of a problem.
-	 * For example, (problemID & TypeRelated) != 0, indicates that this problem is type related.
+	 * For example, (problemID &amp; TypeRelated) != 0, indicates that this problem is type related.
 	 *
 	 * A problem category can help to implement custom problem filters. Indeed, when numerous problems
 	 * are listed, focusing on import related problems first might be relevant.
@@ -502,6 +502,10 @@ void setSourceStart(int sourceStart);
 	int ExceptionParameterIsNeverUsed = Internal + 85;
 	/** @since 3.17 */
 	int BytecodeExceeds64KLimitForSwitchTable = Internal + 86;
+	/** @since 3.38 */
+	int OperandStackExceeds64KLimit = Internal + 87;
+	/** @since 3.38 */
+	int OperandStackSizeInappropriate = Internal + 88;
 
 	// variable hiding
 	/** @since 3.0 */
@@ -2048,6 +2052,27 @@ void setSourceStart(int sourceStart);
 	/** @since 3.14 */
 	int DuplicateResource = Internal + 1251;
 
+	/** @since 3.37 */
+	int ShouldMarkMethodAsOwning = Internal + 1260;
+	/** @since 3.37 */
+	int MandatoryCloseNotShown = Internal + 1261;
+	/** @since 3.37 */
+	int MandatoryCloseNotShownAtExit = Internal + 1262;
+	/** @since 3.37 */
+	int NotOwningResourceField = Internal + 1263;
+	/** @since 3.37 */
+	int OwningFieldInNonResourceClass = Internal + 1264;
+	/** @since 3.37 */
+	int OwningFieldShouldImplementClose = Internal + 1265;
+	/** @since 3.37 */
+	int OverrideReducingParamterOwning = Internal + 1266;
+	/** @since 3.37 */
+	int OverrideAddingReturnOwning = Internal + 1267;
+	/** @since 3.38 */
+	int StaticResourceField = Internal + 1268;
+	/** @since 3.38 */
+	int ResourceIsNotAValue = Internal + 1269;
+
 	// terminally
 	/** @since 3.14 */
 	int UsingTerminallyDeprecatedType = TypeRelated + 1400;
@@ -2433,6 +2458,10 @@ void setSourceStart(int sourceStart);
 	 */
 	int PatternVariableRedeclared = Internal + 1784;
 
+	/** @since 3.38
+	 */
+	int DimensionsIllegalOnRecordPattern = Internal + 1785;
+
 	/** @since 3.28
 	 */
 	int DiscouragedValueBasedTypeSynchronization = Internal + 1820;
@@ -2559,9 +2588,42 @@ void setSourceStart(int sourceStart);
 	 */
 	int IllegalRecordPattern = TypeRelated + 1941;
 
+	/**
+	 * @since 3.38
+	 */
+	int NamedPatternVariablesDisallowedHere = Internal + 1942;
+
+	/**
+	 * @since 3.38
+	 */
+	int ImplicitClassMissingMainMethod = PreviewRelated + 1950;
 
 	/**
 	 * @since 3.35
 	 */
 	int SyntheticAccessorNotEnclosingMethod = MethodRelated + 1990;
+
+	/**
+	 * @since 3.38
+	 * @noreference preview feature
+	 */
+	int UnderscoreCannotBeUsedHere = PreviewRelated + 2000;
+	/**
+	 * @since 3.38
+	 * @noreference preview feature
+	 */
+	int UnnamedVariableMustHaveInitializer = PreviewRelated + 2001;
+
+	/**
+	 * @since 3.38
+	 * @noreference preview feature
+	 */
+	int ExpressionInPreConstructorContext = PreviewRelated + 2022;
+
+	/**
+	 * @since 3.38
+	 * @noreference preview feature
+	 */
+	int DisallowedStatementInPrologue = PreviewRelated + 2023;
+
 }

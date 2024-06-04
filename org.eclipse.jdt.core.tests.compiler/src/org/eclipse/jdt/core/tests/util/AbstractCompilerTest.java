@@ -15,6 +15,7 @@ package org.eclipse.jdt.core.tests.util;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,6 +54,7 @@ public class AbstractCompilerTest extends TestCase {
 	public static final int F_19  = 0x10000;
 	public static final int F_20  = 0x20000;
 	public static final int F_21  = 0x40000;
+	public static final int F_22  = 0x80000;
 
 	public static final boolean RUN_JAVAC = CompilerOptions.ENABLED.equals(System.getProperty("run.javac"));
 	public static final boolean PERFORMANCE_ASSERTS = !CompilerOptions.DISABLED.equals(System.getProperty("jdt.performance.asserts"));
@@ -76,6 +78,7 @@ public class AbstractCompilerTest extends TestCase {
 	protected static boolean isJRE19Plus = false;
 	protected static boolean isJRE20Plus = false;
 	protected static boolean isJRE21Plus = false;
+	protected static boolean isJRE22Plus = false;
 	protected static boolean reflectNestedClassUseDollar;
 
 	public static int[][] complianceTestLevelMapping = new int[][] {
@@ -98,6 +101,7 @@ public class AbstractCompilerTest extends TestCase {
 		new int[] {F_19, ClassFileConstants.MAJOR_VERSION_19},
 		new int[] {F_20, ClassFileConstants.MAJOR_VERSION_20},
 		new int[] {F_21, ClassFileConstants.MAJOR_VERSION_21},
+		new int[] {F_22, ClassFileConstants.MAJOR_VERSION_22},
 	};
 
 	/**
@@ -194,7 +198,15 @@ public class AbstractCompilerTest extends TestCase {
 		for (int i=0, m=testClasses.size(); i<m ; i++) {
 			Class testClass = (Class)testClasses.get(i);
 			TestSuite suite = new TestSuite(testClass.getName());
-			List tests = buildTestsList(testClass);
+			int inheritedDepth = 0;
+			try {
+				Field depthField = testClass.getDeclaredField("INHERITED_DEPTH");
+				if (depthField != null)
+					inheritedDepth = depthField.getInt(null);
+			} catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
+				// ignore
+			}
+			List tests = buildTestsList(testClass, inheritedDepth, ORDERING);
 			for (int index=0, size=tests.size(); index<size; index++) {
 				suite.addTest((Test)tests.get(index));
 			}
@@ -224,7 +236,7 @@ public class AbstractCompilerTest extends TestCase {
 		}
 		return suite;
 	}
-	private static void checkCompliance(Class evaluationTestClass, int minimalCompliance, TestSuite suite,
+	protected static void checkCompliance(Class evaluationTestClass, int minimalCompliance, TestSuite suite,
 			int complianceLevels, int abstractCompilerTestCompliance, int classFileConstantsVersion, String release) {
 		int lev = complianceLevels & abstractCompilerTestCompliance;
 		if (lev != 0) {
@@ -336,7 +348,8 @@ public class AbstractCompilerTest extends TestCase {
 			if (spec > Integer.parseInt(CompilerOptions.getLatestVersion())) {
 				specVersion = CompilerOptions.getLatestVersion();
 			}
-			isJRE21Plus = CompilerOptions.VERSION_21.equals(specVersion);
+			isJRE22Plus = CompilerOptions.VERSION_22.equals(specVersion);
+			isJRE21Plus = isJRE22Plus || CompilerOptions.VERSION_21.equals(specVersion);
 			isJRE20Plus = isJRE21Plus || CompilerOptions.VERSION_20.equals(specVersion);
 			isJRE19Plus = isJRE20Plus || CompilerOptions.VERSION_19.equals(specVersion);
 			isJRE18Plus = isJRE19Plus || CompilerOptions.VERSION_18.equals(specVersion);
@@ -397,7 +410,8 @@ public class AbstractCompilerTest extends TestCase {
 						System.out.println(CompilerOptions.VERSION_18 + ", ");
 						System.out.println(CompilerOptions.VERSION_19 + ", ");
 						System.out.println(CompilerOptions.VERSION_20 + ", ");
-						System.out.println(CompilerOptions.VERSION_21);
+						System.out.println(CompilerOptions.VERSION_21 + ", ");
+						System.out.println(CompilerOptions.VERSION_22);
 					}
 				}
 				if (possibleComplianceLevels == 0) {

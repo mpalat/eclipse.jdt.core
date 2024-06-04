@@ -34,8 +34,10 @@ import org.eclipse.jdt.internal.compiler.lookup.ClassScope;
 import org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
 import org.eclipse.jdt.internal.compiler.lookup.MethodBinding;
 import org.eclipse.jdt.internal.compiler.lookup.MethodScope;
+import org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
 import org.eclipse.jdt.internal.compiler.lookup.Scope;
 import org.eclipse.jdt.internal.compiler.lookup.TagBits;
+import org.eclipse.jdt.internal.compiler.lookup.TypeBinding;
 import org.eclipse.jdt.internal.compiler.lookup.TypeConstants;
 import org.eclipse.jdt.internal.compiler.lookup.TypeVariableBinding;
 
@@ -58,8 +60,8 @@ public class TypeParameter extends AbstractVariableDeclaration {
 			this.type.checkBounds(scope);
 		}
 		if (this.bounds != null) {
-			for (int i = 0, length = this.bounds.length; i < length; i++) {
-				this.bounds[i].checkBounds(scope);
+			for (TypeReference bound : this.bounds) {
+				bound.checkBounds(scope);
 			}
 		}
 	}
@@ -152,9 +154,8 @@ public class TypeParameter extends AbstractVariableDeclaration {
 							if ((this.binding.tagBits & TagBits.AnnotationNonNull) != 0)
 								scope.problemReporter().nullAnnotationIsRedundant(this);
 						} else { // no explicit type annos, add the default:
-							AnnotationBinding[] annots = new AnnotationBinding[] { environment.getNonNullAnnotation() };
 							TypeVariableBinding previousBinding = this.binding;
-							this.binding = (TypeVariableBinding) environment.createAnnotatedType(this.binding, annots);
+							this.binding = (TypeVariableBinding) environment.createNonNullAnnotatedType(this.binding);
 
 							if (scope instanceof MethodScope) {
 								/*
@@ -180,7 +181,7 @@ public class TypeParameter extends AbstractVariableDeclaration {
 	}
 
 	@Override
-	public StringBuffer printStatement(int indent, StringBuffer output) {
+	public StringBuilder printStatement(int indent, StringBuilder output) {
 		if (this.annotations != null) {
 			printAnnotations(this.annotations, output);
 			output.append(' ');
@@ -191,9 +192,9 @@ public class TypeParameter extends AbstractVariableDeclaration {
 			this.type.print(0, output);
 		}
 		if (this.bounds != null){
-			for (int i = 0; i < this.bounds.length; i++) {
+			for (TypeReference bound : this.bounds) {
 				output.append(" & "); //$NON-NLS-1$
-				this.bounds[i].print(0, output);
+				bound.print(0, output);
 			}
 		}
 		return output;
@@ -246,17 +247,36 @@ public class TypeParameter extends AbstractVariableDeclaration {
 	}
 
 	public void updateWithAnnotations(ClassScope scope) {
-		if (this.binding != null && (this.binding.tagBits & TagBits.AnnotationResolved) != 0)
+		if (this.binding == null || (this.binding.tagBits & TagBits.AnnotationResolved) != 0)
 			return;
 		if (this.type != null) {
+			TypeBinding prevType = this.type.resolvedType;
 			this.type.updateWithAnnotations(scope, Binding.DefaultLocationTypeBound);
-		}
-		if (this.bounds != null) {
-			for (int i = 0; i < this.bounds.length; i++) {
-				this.bounds[i].updateWithAnnotations(scope, Binding.DefaultLocationTypeBound);
+			if (this.type.resolvedType instanceof ReferenceBinding && prevType != this.type.resolvedType) { //$IDENTITY-COMPARISON$
+				ReferenceBinding newType = (ReferenceBinding) this.type.resolvedType;
+				this.binding.firstBound = newType;
+				if (newType.isClass())
+					this.binding.superclass = newType;
 			}
 		}
-		// TODO: do we need to update anything else for null-annotated types?
+		if (this.bounds != null) {
+			for (TypeReference bound : this.bounds) {
+				TypeBinding prevType = bound.resolvedType;
+				bound.updateWithAnnotations(scope, Binding.DefaultLocationTypeBound);
+				if (bound.resolvedType instanceof ReferenceBinding && prevType != bound.resolvedType) { //$IDENTITY-COMPARISON$
+					ReferenceBinding newType = (ReferenceBinding) bound.resolvedType;
+					ReferenceBinding[] superInterfaces = this.binding.superInterfaces;
+					if (superInterfaces != null) {
+						for (int j = 0; j < superInterfaces.length; j++) {
+							if (prevType == superInterfaces[j]) { //$IDENTITY-COMPARISON$
+								superInterfaces[j] = newType;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
 		resolveAnnotations(scope);
 	}
 }

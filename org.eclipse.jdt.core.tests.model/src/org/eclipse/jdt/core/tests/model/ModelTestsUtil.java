@@ -31,7 +31,15 @@ import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
-import org.eclipse.jdt.core.*;
+import org.eclipse.jdt.core.IClassFile;
+import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IJavaElement;
+import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IPackageFragment;
+import org.eclipse.jdt.core.IPackageFragmentRoot;
+import org.eclipse.jdt.core.IType;
+import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.internal.core.JarPackageFragmentRoot;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
@@ -67,11 +75,8 @@ static public void copy(File src, File dest) throws IOException {
 	}
 
 	// write bytes to dest
-	FileOutputStream out = new FileOutputStream(dest);
-	try {
+	try (FileOutputStream out = new FileOutputStream(dest)) {
 		out.write(srcBytes);
-	} finally {
-		out.close();
 	}
 }
 
@@ -387,7 +392,7 @@ public static String removeWhiteSpace(String input) {
 }
 
 /**
- * Check locally for the required JCL files, <jclName>.jar and <jclName>src.zip.
+ * Check locally for the required JCL files, {@code <jclName>.jar and <jclName>src.zip}.
  * If not available, copy from the project resources.
  */
 static public void setupExternalJCL(String jclName) throws IOException {

@@ -35,6 +35,12 @@ import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.Signature;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
+import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
+import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
 import org.eclipse.jdt.core.tests.util.Util;
 import org.eclipse.jdt.internal.core.JavaProject;
 import org.eclipse.jdt.internal.core.LambdaExpression;
@@ -442,7 +448,7 @@ public void testParamAnnotations3() throws CoreException {
 		assertEquals(annotationString2, iAnnotation.toString());
 		IMemberValuePair[] memberValuePairs = iAnnotation.getMemberValuePairs();
 		assertEquals("Wrong number of pairs", 1, memberValuePairs.length);
-		StringBuffer output = new StringBuffer();
+		StringBuilder output = new StringBuilder();
 		output.append(memberValuePairs[0].getMemberName());
 		output.append(' ');
 		output.append(memberValuePairs[0].getValue());
@@ -496,7 +502,7 @@ public void testParamAnnotations4() throws CoreException, IOException {
 		assertEquals("@p.Marker [in Test(int, java.lang.String, int) [in X [in X.class [in p [in lib334783_2.jar [in P]]]]]]", annotation.toString());
 		IMemberValuePair[] memberValuePairs = annotation.getMemberValuePairs();
 		assertEquals("Wrong number of pairs", 1, memberValuePairs.length);
-		StringBuffer output = new StringBuffer();
+		StringBuilder output = new StringBuilder();
 		output.append(memberValuePairs[0].getMemberName());
 		output.append(' ');
 		output.append(memberValuePairs[0].getValue());
@@ -515,7 +521,7 @@ public void testParamAnnotations4() throws CoreException, IOException {
 		assertEquals(annotationString2, annotation.toString());
 		memberValuePairs = annotation.getMemberValuePairs();
 		assertEquals("Wrong number of pairs", 1, memberValuePairs.length);
-		output = new StringBuffer();
+		output = new StringBuilder();
 		output.append(memberValuePairs[0].getMemberName());
 		output.append(' ');
 		output.append(memberValuePairs[0].getValue());
@@ -571,7 +577,7 @@ public void testParamAnnotations5() throws CoreException, IOException {
 		assertEquals("@p.Marker [in Test(int, java.lang.String, int) [in X [in X.class [in p [in lib334783_3.jar [in P]]]]]]", annotation.toString());
 		IMemberValuePair[] memberValuePairs = annotation.getMemberValuePairs();
 		assertEquals("Wrong number of pairs", 1, memberValuePairs.length);
-		StringBuffer output = new StringBuffer();
+		StringBuilder output = new StringBuilder();
 		output.append(memberValuePairs[0].getMemberName());
 		output.append(' ');
 		output.append(memberValuePairs[0].getValue());
@@ -583,7 +589,7 @@ public void testParamAnnotations5() throws CoreException, IOException {
 		assertEquals(annotationString2, annotation.toString());
 		memberValuePairs = annotation.getMemberValuePairs();
 		assertEquals("Wrong number of pairs", 1, memberValuePairs.length);
-		output = new StringBuffer();
+		output = new StringBuilder();
 		output.append(memberValuePairs[0].getMemberName());
 		output.append(' ');
 		output.append(memberValuePairs[0].getValue());
@@ -692,7 +698,7 @@ public void testParamAnnotations8() throws CoreException, IOException {
 		assertEquals("@p.Marker [in X(int, java.lang.String, int) [in X [in X.class [in p [in lib334783_3.jar [in P]]]]]]", annotation.toString());
 		IMemberValuePair[] memberValuePairs = annotation.getMemberValuePairs();
 		assertEquals("Wrong number of pairs", 1, memberValuePairs.length);
-		StringBuffer output = new StringBuffer();
+		StringBuilder output = new StringBuilder();
 		output.append(memberValuePairs[0].getMemberName());
 		output.append(' ');
 		output.append(memberValuePairs[0].getValue());
@@ -704,7 +710,7 @@ public void testParamAnnotations8() throws CoreException, IOException {
 		assertEquals(annotationString2, annotation.toString());
 		memberValuePairs = annotation.getMemberValuePairs();
 		assertEquals("Wrong number of pairs", 1, memberValuePairs.length);
-		output = new StringBuffer();
+		output = new StringBuilder();
 		output.append(memberValuePairs[0].getMemberName());
 		output.append(' ');
 		output.append(memberValuePairs[0].getValue());
@@ -745,7 +751,7 @@ public void testParamAnnotations9() throws CoreException, IOException {
 	}
 }
 /**
- * @bug 342393: Anonymous class' occurrence count is incorrect when two methods in a class have the same name.
+ * bug 342393: Anonymous class' occurrence count is incorrect when two methods in a class have the same name.
  *
  * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=342393"
  */
@@ -1420,6 +1426,46 @@ public void test531046h() throws CoreException, IOException {
 		ILocalVariable variable = (ILocalVariable) elements[0];
 		assertEquals("incorrect type", "&QCharSequence;:QComparable<QString;>;", variable.getTypeSignature());
 	} finally {
+		deleteProject("P");
+	}
+}
+// derived from test531046a, verifying we get same value from codeSelect or bindings
+public void testJavaElementViaBindings() throws CoreException, IOException {
+	if (!isJRE9) return;
+	org.eclipse.jdt.internal.core.CompilationUnit unit = null;
+	try {
+		createJava10Project("P", new String[] {"src"});
+		createFolder("/P/src/p");
+		createFile("/P/src/p/X.java", "");
+		waitForAutoBuild();
+
+		unit = (org.eclipse.jdt.internal.core.CompilationUnit)getCompilationUnit("/P/src/p/X.java");
+		unit.becomeWorkingCopy(new ProblemRequestor(), null);
+		unit.getBuffer().setContents("""
+			package p;
+			public class X {
+			  public static void main(java.lang.String[] args) {
+			    var s1 = args[0];
+			    System.out.println(s1);
+			  }
+			}
+			""");
+		CompilationUnit dom = unit.makeConsistent(AST.getJLSLatest(), true, 0, null, null);
+		VariableDeclarationFragment domVariable = (VariableDeclarationFragment)
+			((VariableDeclarationStatement)
+				((TypeDeclaration)dom.types().get(0)).getMethods()[0].getBody().statements().get(0))
+			.fragments().get(0);
+		ILocalVariable variable = (ILocalVariable)domVariable.resolveBinding().getJavaElement();
+		assertEquals("incorrect type", "Ljava.lang.String;", variable.getTypeSignature());
+
+		SingleVariableDeclaration parameterVar = (SingleVariableDeclaration)
+				((TypeDeclaration)dom.types().get(0)).getMethods()[0].parameters().get(0);
+		variable = (ILocalVariable)parameterVar.resolveBinding().getJavaElement();
+		assertEquals("incorrect type", "[Ljava.lang.String;", variable.getTypeSignature());
+	} finally {
+		if (unit != null) {
+			unit.discardWorkingCopy();
+		}
 		deleteProject("P");
 	}
 }

@@ -182,8 +182,8 @@ class ConstraintExpressionFormula extends ConstraintFormula {
 				if (parameters.length != lambda.arguments().length)
 					return FALSE;
 				if (lambda.argumentsTypeElided())
-					for (int i = 0; i < parameters.length; i++)
-						if (!parameters[i].isProperType(true))
+					for (TypeBinding parameter : parameters)
+						if (!parameter.isProperType(true))
 							return FALSE;
 				lambda = lambda.resolveExpressionExpecting(t, inferenceContext.scope, inferenceContext);
 				if (lambda == null)
@@ -340,6 +340,8 @@ class ConstraintExpressionFormula extends ConstraintFormula {
 			TypeBinding rPrime = compileTimeDecl.isConstructor() ? compileTimeDecl.declaringClass : compileTimeDecl.returnType.capture(inferenceContext.scope, reference.sourceStart(), reference.sourceEnd());
 			if (rPrime.id == TypeIds.T_void)
 				return FALSE;
+			if (compileTimeDecl.isConstructor() && inferenceContext.environment.usesNullTypeAnnotations())
+				rPrime = inferenceContext.environment.createNonNullAnnotatedType(rPrime);
 			return ConstraintTypeFormula.create(rPrime, r, COMPATIBLE, this.isSoft);
 		}
 	}
@@ -557,7 +559,7 @@ class ConstraintExpressionFormula extends ConstraintFormula {
 	// debugging:
 	@Override
 	public String toString() {
-		StringBuffer buf = new StringBuffer().append(LEFT_ANGLE_BRACKET);
+		StringBuilder buf = new StringBuilder().append(LEFT_ANGLE_BRACKET);
 		this.left.printExpression(4, buf);
 		buf.append(relationToString(this.relation));
 		appendTypeName(buf, this.right);

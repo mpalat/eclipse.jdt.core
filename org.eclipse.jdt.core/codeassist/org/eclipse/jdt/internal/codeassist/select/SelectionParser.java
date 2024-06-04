@@ -65,6 +65,7 @@ import org.eclipse.jdt.internal.compiler.ast.ReturnStatement;
 import org.eclipse.jdt.internal.compiler.ast.SingleMemberAnnotation;
 import org.eclipse.jdt.internal.compiler.ast.SingleNameReference;
 import org.eclipse.jdt.internal.compiler.ast.Statement;
+import org.eclipse.jdt.internal.compiler.ast.StringTemplate;
 import org.eclipse.jdt.internal.compiler.ast.SuperReference;
 import org.eclipse.jdt.internal.compiler.ast.SwitchExpression;
 import org.eclipse.jdt.internal.compiler.ast.SwitchStatement;
@@ -77,6 +78,7 @@ import org.eclipse.jdt.internal.compiler.env.ICompilationUnit;
 import org.eclipse.jdt.internal.compiler.lookup.BlockScope;
 import org.eclipse.jdt.internal.compiler.lookup.TypeBinding;
 import org.eclipse.jdt.internal.compiler.parser.JavadocParser;
+import org.eclipse.jdt.internal.compiler.parser.Parser;
 import org.eclipse.jdt.internal.compiler.parser.RecoveredType;
 import org.eclipse.jdt.internal.compiler.problem.ProblemReporter;
 import org.eclipse.jdt.internal.compiler.util.Util;
@@ -118,11 +120,13 @@ public class SelectionParser extends AssistParser {
 	 * Rationale: we really need to complete parsing the invocation for resolving to succeed.
 	 */
 	private int selectionNodeFoundLevel = 0;
+	private boolean parsingEmbeddedExpression = false;
 	public ASTNode assistNodeParent; // the parent node of assist node
 
 	/* public fields */
 
 	public int selectionStart, selectionEnd;
+
 	public static final char[] SUPER = "super".toCharArray(); //$NON-NLS-1$
 	public static final char[] THIS = "this".toCharArray(); //$NON-NLS-1$
 
@@ -202,7 +206,7 @@ private void buildMoreCompletionContext(Expression expression) {
 				thenStat = elseStat = null;
 				break;
 			case K_BETWEEN_CASE_AND_COLONORARROW:
-				parentNode = orphan = new CaseStatement((Expression) orphan, orphan.sourceStart, orphan.sourceEnd);
+				parentNode = orphan = new CaseStatement( new Expression [] { (Expression) orphan }, orphan.sourceStart, orphan.sourceEnd);
 				break;
 			case K_INSIDE_WHEN:
 				if (this.astPtr >=0 && this.astStack[this.astPtr] instanceof Pattern && orphan instanceof Expression) {
@@ -1256,7 +1260,7 @@ protected void consumeMethodInvocationName() {
 				return null;
 			}
 			@Override
-			public StringBuffer printExpression(int indent, StringBuffer output) {
+			public StringBuilder printExpression(int indent, StringBuilder output) {
 				return output;
 			}
 		});
@@ -1308,7 +1312,7 @@ protected void consumeMethodInvocationPrimary() {
 				return null;
 			}
 			@Override
-			public StringBuffer printExpression(int indent, StringBuffer output) {
+			public StringBuilder printExpression(int indent, StringBuilder output) {
 				return output;
 			}
 		});
@@ -1864,6 +1868,42 @@ protected MessageSend newMessageSendWithTypeArguments() {
 	this.isOrphanCompletionNode = true;
 	return messageSend;
 }
+
+@Override
+protected void consumeTemplate(int token) {
+	super.consumeTemplate(token);
+	StringTemplate st = (StringTemplate) this.expressionStack[this.expressionPtr];
+	if (this.selectionStart >= st.sourceStart && this.selectionEnd < st.sourceEnd) {
+		this.restartRecovery = true;
+		this.selectionNodeFoundLevel = 1; // continue to parse until containing block statement gets reduced.
+	}
+}
+
+@Override
+protected Expression parseEmbeddedExpression(Parser parser, char[] source, int offset, int length,
+		CompilationUnitDeclaration unit, boolean recordLineSeparators) {
+
+	Expression e = super.parseEmbeddedExpression(parser, source, offset, length, unit, recordLineSeparators);
+	if (((AssistParser) parser).assistNode != null) {
+		this.assistNode = ((AssistParser) parser).assistNode;
+		((SelectionScanner) this.scanner).selectionIdentifier = ((SelectionScanner)parser.scanner).selectionIdentifier;
+	}
+	return e;
+}
+@Override
+protected SelectionParser getEmbeddedExpressionParser() {
+	SelectionParser sp = new SelectionParser(this.problemReporter);
+	sp.selectionStart = this.selectionStart;
+	sp.selectionEnd = this.selectionEnd;
+	sp.parsingEmbeddedExpression = true;
+
+	SelectionScanner selectionScanner = (SelectionScanner)sp.scanner;
+	selectionScanner.selectionIdentifier = null;
+	selectionScanner.selectionStart = this.selectionStart;
+	selectionScanner.selectionEnd = this.selectionEnd;
+	return sp;
+}
+
 @Override
 public CompilationUnitDeclaration parse(ICompilationUnit sourceUnit, CompilationResult compilationResult, int start, int end) {
 
@@ -1880,7 +1920,7 @@ public CompilationUnitDeclaration parse(ICompilationUnit sourceUnit, Compilation
 
 @Override
 protected boolean restartRecovery() {
-	if (requireExtendedRecovery() || this.selectionNodeFoundLevel > 0)
+	if (requireExtendedRecovery() || this.selectionNodeFoundLevel > 0 || this.parsingEmbeddedExpression)
 		return false;
 	boolean deferRestartOnLocalType = false;
 	for (int i = 0; i <= this.elementPtr; i++) {
@@ -1889,6 +1929,7 @@ protected boolean restartRecovery() {
 			case K_INSIDE_EXPRESSION_SWITCH:
 			case K_INSIDE_IF:
 			case K_INSIDE_WHILE:
+			case K_INSIDE_FOR_EACH:
 				deferRestartOnLocalType = true;
 				break;
 			case K_TYPE_DELIMITER:

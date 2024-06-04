@@ -55,7 +55,7 @@ public interface TypeIds {
 	final int T_JavaLangError = 19;
 	final int T_JavaLangReflectConstructor = 20;
 	final int T_JavaLangThrowable = 21;
-	final int T_JavaLangNoClassDefError = 22;
+	final int T_JavaLangNoClassDefFoundError = 22;
 	final int T_JavaLangClassNotFoundException = 23;
 	final int T_JavaLangRuntimeException = 24;
 	final int T_JavaLangException = 25;
@@ -282,6 +282,12 @@ public interface TypeIds {
 
 	/** Mark subtypes of List to analyze dangerous indexOf. */
 	final int BitList = 1024;
+
+	/** Mark the type as owning-annotation for resource analysis. */
+	final int BitOwningAnnotation = 2048;
+
+	/** Mark the type as notowning-annotation for resource analysis. */
+	final int BitNotOwningAnnotation = 4096;
 
 	/**
 	 * Set of type bits that should be inherited by any sub types.

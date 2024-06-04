@@ -15,7 +15,6 @@ package org.eclipse.jdt.core.tests.model;
 
 import java.lang.reflect.*;
 import java.util.*;
-import java.util.ArrayList;
 
 import org.eclipse.jdt.core.tests.junit.extension.TestCase;
 
@@ -71,6 +70,7 @@ public class RunJavaSearchTests extends junit.framework.TestCase {
 		allClasses.add(JavaSearchBugs16Tests.class);
 		allClasses.add(JavaSearchBugs17Tests.class);
 		allClasses.add(JavaSearchBugs19Tests.class);
+		allClasses.add(JavaSearchBugs21Tests.class);
 		allClasses.add(JavaSearchMultipleProjectsTests.class);
 		allClasses.add(SearchTests.class);
 		allClasses.add(JavaSearchScopeTests.class);
@@ -79,6 +79,8 @@ public class RunJavaSearchTests extends junit.framework.TestCase {
 		allClasses.add(Bug376673Test.class);
 		allClasses.add(JavaSearchBug565512Test.class);
 		allClasses.add(JavaSearchNameEnvironmentTest.class);
+		allClasses.add(JavaSearchSuperAfterStatementTests.class);
+		allClasses.add(JavaSearchIssue190Test.class);
 
 		// Reset forgotten subsets of tests
 		TestCase.TESTS_PREFIX = null;

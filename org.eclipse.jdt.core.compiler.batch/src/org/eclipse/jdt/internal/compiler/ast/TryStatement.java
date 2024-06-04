@@ -59,8 +59,6 @@ public class TryStatement extends SubRoutineStatement {
 	public Block finallyBlock;
 	BlockScope scope;
 
-	public LocalVariableBinding recPatCatchVar = null;
-
 	public UnconditionalFlowInfo subRoutineInits;
 	ReferenceBinding[] caughtExceptionTypes;
 	boolean[] catchExits;
@@ -95,9 +93,6 @@ public class TryStatement extends SubRoutineStatement {
 	private ExceptionLabel[] resourceExceptionLabels;
 	private int[] caughtExceptionsCatchBlocks;
 
-	public SwitchExpression enclosingSwitchExpression = null;
-	public boolean addPatternAccessorException = false;
-	public int nestingLevel = -1;
 @Override
 public FlowInfo analyseCode(BlockScope currentScope, FlowContext flowContext, FlowInfo flowInfo) {
 
@@ -171,7 +166,9 @@ public FlowInfo analyseCode(BlockScope currentScope, FlowContext flowContext, Fl
 					localVariableBinding = (LocalVariableBinding) ((NameReference) resource).binding;
 				}
 				resolvedType = ((Expression) resource).resolvedType;
-				recordCallingClose(currentScope, flowContext, tryInfo, (Expression)resource);
+				if (currentScope.compilerOptions().analyseResourceLeaks) {
+					recordCallingClose(currentScope, handlingContext, tryInfo, (Expression)resource);
+				}
 			}
 			if (localVariableBinding != null) {
 				localVariableBinding.useFlag = LocalVariableBinding.USED; // Is implicitly used anyways.
@@ -179,8 +176,8 @@ public FlowInfo analyseCode(BlockScope currentScope, FlowContext flowContext, Fl
 			MethodBinding closeMethod = findCloseMethod(resource, resolvedType);
 			if (closeMethod != null && closeMethod.isValidBinding() && closeMethod.returnType.id == TypeIds.T_void) {
 				ReferenceBinding[] thrownExceptions = closeMethod.thrownExceptions;
-				for (int j = 0, length = thrownExceptions.length; j < length; j++) {
-					handlingContext.checkExceptionHandlers(thrownExceptions[j], this.resources[i], tryInfo, currentScope, true);
+				for (ReferenceBinding thrownException : thrownExceptions) {
+					handlingContext.checkExceptionHandlers(thrownException, this.resources[i], tryInfo, currentScope, true);
 				}
 			}
 		}
@@ -307,8 +304,8 @@ public FlowInfo analyseCode(BlockScope currentScope, FlowContext flowContext, Fl
 			MethodBinding closeMethod = findCloseMethod(resource, resolvedType);
 			if (closeMethod != null && closeMethod.isValidBinding() && closeMethod.returnType.id == TypeIds.T_void) {
 				ReferenceBinding[] thrownExceptions = closeMethod.thrownExceptions;
-				for (int j = 0, length = thrownExceptions.length; j < length; j++) {
-					handlingContext.checkExceptionHandlers(thrownExceptions[j], this.resources[i], tryInfo, currentScope, true);
+				for (ReferenceBinding thrownException : thrownExceptions) {
+					handlingContext.checkExceptionHandlers(thrownException, this.resources[i], tryInfo, currentScope, true);
 				}
 			}
 		}
@@ -382,7 +379,8 @@ public FlowInfo analyseCode(BlockScope currentScope, FlowContext flowContext, Fl
 	}
 }
 private void recordCallingClose(BlockScope currentScope, FlowContext flowContext, FlowInfo flowInfo, Expression closeTarget) {
-	FakedTrackingVariable trackingVariable = FakedTrackingVariable.getCloseTrackingVariable(closeTarget, flowInfo, flowContext);
+	FakedTrackingVariable trackingVariable = FakedTrackingVariable.getCloseTrackingVariable(closeTarget, flowInfo, flowContext,
+			currentScope.compilerOptions().isAnnotationBasedResourceAnalysisEnabled);
 	if (trackingVariable != null) { // null happens if target is not a local variable or not an AutoCloseable
 		if (trackingVariable.methodScope == currentScope.methodScope()) {
 			trackingVariable.markClose(flowInfo, flowContext);
@@ -556,6 +554,7 @@ public void generateCode(BlockScope currentScope, CodeStream codeStream) {
 	}
 	// generate the try block
 	try {
+		codeStream.pushPatternAccessTrapScope(this.tryBlock.scope);
 		this.declaredExceptionLabels = exceptionLabels;
 		int resourceCount = this.resources.length;
 		if (resourceCount > 0) {
@@ -587,13 +586,8 @@ public void generateCode(BlockScope currentScope, CodeStream codeStream) {
 				}
 			}
 		}
-		if (this.addPatternAccessorException)
-			codeStream.addPatternCatchExceptionInfo(this.tryBlock.scope, this.recPatCatchVar);
 
 		this.tryBlock.generateCode(this.scope, codeStream);
-
-		if (this.addPatternAccessorException)
-			codeStream.removePatternCatchExceptionInfo(this.tryBlock.scope, true);
 
 		if (resourceCount > 0) {
 			for (int i = resourceCount; i >= 0; i--) {
@@ -678,8 +672,11 @@ public void generateCode(BlockScope currentScope, CodeStream codeStream) {
 		// natural exit may require subroutine invocation (if finally != null)
 		BranchLabel naturalExitLabel = new BranchLabel(codeStream);
 		BranchLabel postCatchesFinallyLabel = null;
-		for (int i = 0; i < maxCatches; i++) {
-			exceptionLabels[i].placeEnd();
+		boolean patternAccessorsMayThrow = codeStream.patternAccessorsMayThrow(this.tryBlock.scope);
+		if (!patternAccessorsMayThrow) {
+			for (int i = 0; i < maxCatches; i++) {
+				exceptionLabels[i].placeEnd();
+			}
 		}
 		if ((this.bits & ASTNode.IsTryBlockExiting) == 0) {
 			int position = codeStream.position;
@@ -704,8 +701,15 @@ public void generateCode(BlockScope currentScope, CodeStream codeStream) {
 					codeStream.goto_(this.subRoutineStartLabel);
 					break;
 			}
+
 			codeStream.recordPositionsFrom(position, this.tryBlock.sourceEnd);
 			//goto is tagged as part of the try block
+		}
+		codeStream.handleRecordAccessorExceptions(this.tryBlock.scope);
+		if (patternAccessorsMayThrow) {
+			for (int i = 0; i < maxCatches; i++) {
+				exceptionLabels[i].placeEnd();
+			}
 		}
 		/* generate sequence of handler, all starting by storing the TOS (exception
 		thrown) into their own catch variables, the one specified in the source
@@ -995,6 +999,8 @@ public boolean generateSubRoutineInvocation(BlockScope currentScope, CodeStream 
 	switch(finallyMode) {
 		case FINALLY_DOES_NOT_COMPLETE :
 			if (this.switchExpression != null) {
+				exitAnyExceptionHandler();
+				exitDeclaredExceptionHandlers(codeStream);
 				this.finallyBlock.generateCode(currentScope, codeStream);
 				return true;
 			}
@@ -1002,9 +1008,7 @@ public boolean generateSubRoutineInvocation(BlockScope currentScope, CodeStream 
 			return true;
 
 		case NO_FINALLY :
-			if (this.switchExpression == null) { // already taken care at Yield
-				exitDeclaredExceptionHandlers(codeStream);
-			}
+			exitDeclaredExceptionHandlers(codeStream);
 			return false;
 	}
 	// optimize subroutine invocation sequences, using the targetLocation (if any)
@@ -1078,7 +1082,7 @@ public boolean isSubRoutineEscaping() {
 }
 
 @Override
-public StringBuffer printStatement(int indent, StringBuffer output) {
+public StringBuilder printStatement(int indent, StringBuilder output) {
 	int length = this.resources.length;
 	printIndent(indent, output).append("try" + (length == 0 ? "\n" : " (")); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 	for (int i = 0; i < length; i++) {
@@ -1155,15 +1159,19 @@ public void resolve(BlockScope upperScope) {
 			}
 		} else { // expression
 			Expression node = (Expression) this.resources[i];
-			TypeBinding resourceType = node.resolvedType;
-			if (resourceType instanceof ReferenceBinding) {
-				if (resourceType.findSuperTypeOriginatingFrom(TypeIds.T_JavaLangAutoCloseable, false /*AutoCloseable is not a class*/) == null && resourceType.isValidBinding()) {
+			if (node instanceof NameReference && (node.bits & Binding.VARIABLE) == 0) {
+				upperScope.problemReporter().resourceNotAValue((NameReference) node);
+			} else {
+				TypeBinding resourceType = node.resolvedType;
+				if (resourceType instanceof ReferenceBinding) {
+					if (resourceType.findSuperTypeOriginatingFrom(TypeIds.T_JavaLangAutoCloseable, false /*AutoCloseable is not a class*/) == null && resourceType.isValidBinding()) {
+						upperScope.problemReporter().resourceHasToImplementAutoCloseable(resourceType, node);
+						((Expression) this.resources[i]).resolvedType = new ProblemReferenceBinding(CharOperation.splitOn('.', resourceType.shortReadableName()), null, ProblemReasons.InvalidTypeForAutoManagedResource);
+					}
+				} else if (resourceType != null) { // https://bugs.eclipse.org/bugs/show_bug.cgi?id=349862, avoid secondary error in problematic null case
 					upperScope.problemReporter().resourceHasToImplementAutoCloseable(resourceType, node);
 					((Expression) this.resources[i]).resolvedType = new ProblemReferenceBinding(CharOperation.splitOn('.', resourceType.shortReadableName()), null, ProblemReasons.InvalidTypeForAutoManagedResource);
 				}
-			} else if (resourceType != null) { // https://bugs.eclipse.org/bugs/show_bug.cgi?id=349862, avoid secondary error in problematic null case
-				upperScope.problemReporter().resourceHasToImplementAutoCloseable(resourceType, node);
-				((Expression) this.resources[i]).resolvedType = new ProblemReferenceBinding(CharOperation.splitOn('.', resourceType.shortReadableName()), null, ProblemReasons.InvalidTypeForAutoManagedResource);
 			}
 		}
 	}
@@ -1219,7 +1227,6 @@ public void resolve(BlockScope upperScope) {
 			finallyScope.shiftScopes[0] = tryScope;
 		}
 	}
-	this.recPatCatchVar = RecordPattern.getRecPatternCatchVar(this.nestingLevel, this.scope);
 	this.tryBlock.resolveUsing(tryScope);
 
 	// arguments type are checked against JavaLangThrowable in resolveForCatch(..)
@@ -1262,8 +1269,8 @@ public void resolve(BlockScope upperScope) {
 public void traverse(ASTVisitor visitor, BlockScope blockScope) {
 	if (visitor.visit(this, blockScope)) {
 		Statement[] statements = this.resources;
-		for (int i = 0, max = statements.length; i < max; i++) {
-			statements[i].traverse(visitor, this.scope);
+		for (Statement statement : statements) {
+			statement.traverse(visitor, this.scope);
 		}
 		this.tryBlock.traverse(visitor, this.scope);
 		if (this.catchArguments != null) {
@@ -1355,8 +1362,8 @@ public boolean doesNotCompleteNormally() {
 		return (this.finallyBlock != null) ? this.finallyBlock.doesNotCompleteNormally() : false;
 	}
 	if (this.catchBlocks != null) {
-		for (int i = 0; i < this.catchBlocks.length; i++) {
-			if (!this.catchBlocks[i].doesNotCompleteNormally()) {
+		for (Block catchBlock : this.catchBlocks) {
+			if (!catchBlock.doesNotCompleteNormally()) {
 				return (this.finallyBlock != null) ? this.finallyBlock.doesNotCompleteNormally() : false;
 			}
 		}
@@ -1370,8 +1377,8 @@ public boolean completesByContinue() {
 			!this.finallyBlock.doesNotCompleteNormally() || this.finallyBlock.completesByContinue();
 	}
 	if (this.catchBlocks != null) {
-		for (int i = 0; i < this.catchBlocks.length; i++) {
-			if (this.catchBlocks[i].completesByContinue()) {
+		for (Block catchBlock : this.catchBlocks) {
+			if (catchBlock.completesByContinue()) {
 				return (this.finallyBlock == null) ? true :
 					!this.finallyBlock.doesNotCompleteNormally() || this.finallyBlock.completesByContinue();
 			}
@@ -1385,8 +1392,8 @@ public boolean canCompleteNormally() {
 		return (this.finallyBlock != null) ? this.finallyBlock.canCompleteNormally() : true;
 	}
 	if (this.catchBlocks != null) {
-		for (int i = 0; i < this.catchBlocks.length; i++) {
-			if (this.catchBlocks[i].canCompleteNormally()) {
+		for (Block catchBlock : this.catchBlocks) {
+			if (catchBlock.canCompleteNormally()) {
 				return (this.finallyBlock != null) ? this.finallyBlock.canCompleteNormally() : true;
 			}
 		}
@@ -1400,8 +1407,8 @@ public boolean continueCompletes() {
 			this.finallyBlock.canCompleteNormally() || this.finallyBlock.continueCompletes();
 	}
 	if (this.catchBlocks != null) {
-		for (int i = 0; i < this.catchBlocks.length; i++) {
-			if (this.catchBlocks[i].continueCompletes()) {
+		for (Block catchBlock : this.catchBlocks) {
+			if (catchBlock.continueCompletes()) {
 				return (this.finallyBlock == null) ? true :
 					this.finallyBlock.canCompleteNormally() || this.finallyBlock.continueCompletes();
 			}

@@ -135,7 +135,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	// Debug
 	protected String prefix = "";
 	protected boolean debug = false;
-	protected StringBuffer problems;
+	protected StringBuilder problems;
 	protected String compilerOption = JavaCore.IGNORE;
 	protected List failures;
 	protected boolean stopOnFailure = true;
@@ -231,7 +231,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 		super.setUp();
 		TEST_COUNTERS[0]++;
 		this.failures = new ArrayList();
-		this.problems = new StringBuffer();
+		this.problems = new StringBuilder();
 		this.workingCopies = null;
 		this.savedLevel = this.astLevel;
 	}
@@ -1386,7 +1386,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	 * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=47396"
 	 */
 	public void test011() throws JavaModelException {
-		this.problems = new StringBuffer();
+		this.problems = new StringBuilder();
 		this.sourceUnit = getCompilationUnit("Converter" , "src", "javadoc.test011", "Test.java"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 		ASTNode result = runConversion(this.sourceUnit, true);
 		assumeNotNull("No compilation unit", result);
@@ -2895,7 +2895,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	}
 
 	/**
-	 * @bug 103304: [Javadoc] Wrong reference proposal for inner classes.
+	 * bug103304: [Javadoc] Wrong reference proposal for inner classes.
 	 * @see "http://bugs.eclipse.org/bugs/show_bug.cgi?id=103304"
 	 */
 	public void testBug103304() throws JavaModelException {
@@ -3141,7 +3141,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	}
 
 	/**
-	 * @bug 125676: [javadoc] @category should not read beyond end of line
+	 * bug125676: [javadoc] @category should not read beyond end of line
 	 * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=125676"
 	 */
 	public void testBug125676() throws JavaModelException {
@@ -3204,7 +3204,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	}
 
 	/**
-	 * @bug 125903: [javadoc] Treat whitespace in javadoc tags as invalid tags
+	 * bug125903: [javadoc] Treat whitespace in javadoc tags as invalid tags
 	 * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=125903"
 	 */
 	public void testBug125903() throws JavaModelException {
@@ -3239,7 +3239,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	}
 
 	/**
-	 * @bug 130752: [comments] first BlockComment parsed as LineComment
+	 * bug130752: [comments] first BlockComment parsed as LineComment
 	 * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=130752"
 	 */
 	public void testBug130752() throws JavaModelException {
@@ -3299,8 +3299,8 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	}
 
 	/**
-	 * @bug 165525: [comments] ASTParser excludes trailing line comments from extended range of fields in enums
-	 * @test Ensure that extended ranges are correct for enum constants and last comments of enum declaration
+	 * bug165525: [comments] ASTParser excludes trailing line comments from extended range of fields in enums
+	 * test Ensure that extended ranges are correct for enum constants and last comments of enum declaration
 	 * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=165525"
 	 */
 	public void testBug165525() throws JavaModelException {
@@ -3356,7 +3356,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	}
 
 	/**
-	 * @bug 228648: AST: no binding for Javadoc reference to inner class
+	 * bug228648: AST: no binding for Javadoc reference to inner class
 	 * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=228648"
 	 */
 	public void testBug228648() throws JavaModelException {
@@ -3447,7 +3447,7 @@ public class ASTConverterJavadocTest extends ConverterTestSetup {
 	}
 
 	/**
-	 * @bug 206345: [javadoc] compiler should not interpret contents of {@literal}
+	 * bug206345: [javadoc] compiler should not interpret contents of {@literal}
 	 * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=206345"
 	 * @deprecated
 	 */

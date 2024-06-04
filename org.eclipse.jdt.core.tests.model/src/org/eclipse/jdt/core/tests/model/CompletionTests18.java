@@ -1675,7 +1675,7 @@ public void test430441() throws JavaModelException {
 
 	Map<String, String> options = javaProject.getOptions(true);
 	try {
-		Map<String, String> customOptions = new HashMap<String, String>(options);
+		Map<String, String> customOptions = new HashMap<>(options);
 		customOptions.put(JavaCore.COMPILER_ANNOTATION_NULL_ANALYSIS, JavaCore.ENABLED);
 		customOptions.put(JavaCore.COMPILER_INHERIT_NULL_ANNOTATIONS, JavaCore.ENABLED);
 		javaProject.setOptions(customOptions);
@@ -2504,9 +2504,9 @@ public void testBug459189_002() throws JavaModelException {
 	this.workingCopies[0] = getWorkingCopy(
 			"/Completion/src/X.java",
 			"	Integer bar(Integer x) { return null;}\n"+
-			"public class X {\n"+
+			"public class Y {\n"+
 			"	Integer foo(){\n"+
-			"		I <Integer, X> i2 = (x) -> {/* HERE */ret /* type ctrl-space after ret */};\n"+
+			"		I <Integer, Y> i2 = (x) -> {/* HERE */ret /* type ctrl-space after ret */};\n"+
 			"		return 0;\n"+
 			"	}\n"+
 			"}\n"+
@@ -5950,8 +5950,10 @@ public void testBug574823_completeOn_methodInvocationWithParams_inIfConidtion_in
 	this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
 
 	String result = requestor.getResults();
-    assertTrue(String.format("Result doesn't contain method forEach (%s)", result),
-    		result.contains("forEach[METHOD_REF]{forEach(), Ljava.lang.Iterable<Ljava.lang.String;>;, (Ljava.util.function.Consumer<-Ljava.lang.String;>;)V, null, null, forEach, (arg0), replace[149, 149], token[149, 149], 60}"));
+	int relevance = R_DEFAULT + R_RESOLVED + R_INTERESTING + R_CASE + R_VOID + R_NON_STATIC + R_NON_RESTRICTED;
+	assertTrue(String.format("Result doesn't contain method forEach (%s)", result),
+			result.contains("forEach[METHOD_REF]{forEach(), Ljava.lang.Iterable<Ljava.lang.String;>;, (Ljava.util.function.Consumer<-Ljava.lang.String;>;)V," +
+					" null, null, forEach, (arg0), replace[149, 149], token[149, 149], "+relevance+"}"));
 }
 public void testBug574823_completeOn_methodInvocationWithParams_inIfConidtion_insideIf_followedByChainedStatment() throws Exception {
 	this.workingCopies = new ICompilationUnit[1];
@@ -5974,8 +5976,10 @@ public void testBug574823_completeOn_methodInvocationWithParams_inIfConidtion_in
 	this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
 
 	String result = requestor.getResults();
-    assertTrue(String.format("Result doesn't contain method forEach (%s)", result),
-    		result.contains("forEach[METHOD_REF]{forEach(), Ljava.lang.Iterable<Ljava.lang.String;>;, (Ljava.util.function.Consumer<-Ljava.lang.String;>;)V, null, null, forEach, (arg0), replace[149, 149], token[149, 149], 60}"));
+	int relevance = R_DEFAULT + R_RESOLVED + R_INTERESTING + R_CASE + R_VOID + R_NON_STATIC + R_NON_RESTRICTED;
+	assertTrue(String.format("Result doesn't contain method forEach (%s)", result),
+			result.contains("forEach[METHOD_REF]{forEach(), Ljava.lang.Iterable<Ljava.lang.String;>;, (Ljava.util.function.Consumer<-Ljava.lang.String;>;)V," +
+					" null, null, forEach, (arg0), replace[149, 149], token[149, 149], "+relevance+"}"));
 }
 public void testBug574823_completeOn_methodInvocationWithParams_inWhileConidtion_insideWhileBlock_followedByChainedStatment() throws Exception {
 	this.workingCopies = new ICompilationUnit[1];
@@ -5999,8 +6003,10 @@ public void testBug574823_completeOn_methodInvocationWithParams_inWhileConidtion
 	this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
 
 	String result = requestor.getResults();
-    assertTrue(String.format("Result doesn't contain method forEach (%s)", result),
-    		result.contains("forEach[METHOD_REF]{forEach(), Ljava.lang.Iterable<Ljava.lang.String;>;, (Ljava.util.function.Consumer<-Ljava.lang.String;>;)V, null, null, forEach, (arg0), replace[152, 152], token[152, 152], 60}"));
+	int relevance = R_DEFAULT + R_RESOLVED + R_INTERESTING + R_CASE + R_VOID + R_NON_STATIC + R_NON_RESTRICTED;
+	assertTrue(String.format("Result doesn't contain method forEach (%s)", result),
+		result.contains("forEach[METHOD_REF]{forEach(), Ljava.lang.Iterable<Ljava.lang.String;>;, (Ljava.util.function.Consumer<-Ljava.lang.String;>;)V," +
+				" null, null, forEach, (arg0), replace[152, 152], token[152, 152], "+relevance+"}"));
 }
 public void testBug574823_completeOn_methodInvocationWithParams_inIfConidtionWithExpression_insideIfBlock_followedByChainedStatment() throws Exception {
 	this.workingCopies = new ICompilationUnit[1];
@@ -6594,9 +6600,7 @@ public void testBug578817() throws JavaModelException {
 	requestor = new CompletionTestsRequestor2(true);
 	requestor.setAllowsRequiredProposals(CompletionProposal.TYPE_REF, CompletionProposal.TYPE_REF, true);
 	requestor.setAllowsRequiredProposals(CompletionProposal.CONSTRUCTOR_INVOCATION, CompletionProposal.TYPE_REF, true);
-	requestor.setTypeProposalFilter((typeName) -> {
-		return typeName.startsWith("java.util.");
-	});
+	requestor.setTypeProposalFilter(typeName -> typeName.startsWith("java.util."));
 	this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner, new NullProgressMonitor());
 	result = requestor.getResults();
 	assertResults("", result);
@@ -7038,4 +7042,134 @@ public void testGH979_on1stConstructorArgumentWithFilledArgumentNames_expectComp
 					+ (R_DEFAULT + R_RESOLVED + R_INTERESTING + R_CASE + R_UNQUALIFIED + R_NON_RESTRICTED) + "}",
 			result);
 }
+
+public void testGH1587_onConstructorWithArgumentsBeforeFirstArgument_withinMethodInvocation_expectConstructorCompletion()
+		throws JavaModelException {
+	this.workingCopies = new ICompilationUnit[3];
+	this.workingCopies[2] = getWorkingCopy("/Completion/src/GHXYZObject.java", """
+			public class GHXYZObject {
+				public GHXYZObject(String name, int type){}
+			}
+			""");
+	this.workingCopies[1] = getWorkingCopy("/Completion/src/GHXYZReciever.java", """
+			public class GHXYZReciever {
+				public GHXYZReciever foo(GHXYZObject input) {
+					return this;
+				}
+			}
+			""");
+	this.workingCopies[0] = getWorkingCopy("/Completion/src/GHXYZ.java", """
+			public class GHXYZ {
+				public static void foo() {
+					new GHXYZReciever().foo(new GHXYZObject(null, 0));
+				}
+			}
+			""");
+
+	CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
+	requestor.allowAllRequiredProposals();
+
+	String str = this.workingCopies[0].getSource();
+	String completeBehind = "new GHXYZObject(";
+	int cursorLocation = str.lastIndexOf(completeBehind) + completeBehind.length();
+	this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner, new NullProgressMonitor());
+
+	String result = requestor.getResults();
+	assertResults(
+			"GHXYZObject[METHOD_REF<CONSTRUCTOR>]{, LGHXYZObject;, (Ljava.lang.String;I)V, GHXYZObject, (name, type), "
+					+ (R_DEFAULT + R_INTERESTING + R_RESOLVED + R_NON_RESTRICTED) + "}\n"
+					+ "foo[METHOD_REF]{foo(), LGHXYZ;, ()V, foo, null, "
+					+ (R_DEFAULT + R_RESOLVED + R_INTERESTING + R_NON_STATIC) + "}\n"
+					+ "GHXYZ[TYPE_REF]{GHXYZ, , LGHXYZ;, null, null, "
+					+ (R_DEFAULT + R_RESOLVED + R_INTERESTING + R_CASE + R_UNQUALIFIED + R_NON_RESTRICTED) + "}",
+			result);
+}
+
+public void testGH1587_onConstructorWithArgumentsBeforeNthArgument_withinMethodInvocation_expectConstructorCompletion()
+		throws JavaModelException {
+	this.workingCopies = new ICompilationUnit[3];
+	this.workingCopies[2] = getWorkingCopy("/Completion/src/GHXYZObject.java", """
+			public class GHXYZObject {
+				public GHXYZObject(String name, int type){}
+			}
+			""");
+	this.workingCopies[1] = getWorkingCopy("/Completion/src/GHXYZReciever.java", """
+			public class GHXYZReciever {
+				public GHXYZReciever foo(GHXYZObject input) {
+					return this;
+				}
+			}
+			""");
+	this.workingCopies[0] = getWorkingCopy("/Completion/src/GHXYZ.java", """
+			public class GHXYZ {
+				public static void foo() {
+					new GHXYZReciever().foo(new GHXYZObject(null, 0));
+				}
+			}
+			""");
+
+	CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
+	requestor.allowAllRequiredProposals();
+
+	String str = this.workingCopies[0].getSource();
+	String completeBehind = "new GHXYZObject(null,";
+	int cursorLocation = str.lastIndexOf(completeBehind) + completeBehind.length();
+	this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner, new NullProgressMonitor());
+
+	String result = requestor.getResults();
+	assertResults(
+			"GHXYZObject[METHOD_REF<CONSTRUCTOR>]{, LGHXYZObject;, (Ljava.lang.String;I)V, GHXYZObject, (name, type), "
+					+ (R_DEFAULT + R_INTERESTING + R_RESOLVED + R_NON_RESTRICTED) + "}\n"
+					+ "foo[METHOD_REF]{foo(), LGHXYZ;, ()V, foo, null, "
+					+ (R_DEFAULT + R_RESOLVED + R_INTERESTING + R_NON_STATIC) + "}\n"
+					+ "GHXYZ[TYPE_REF]{GHXYZ, , LGHXYZ;, null, null, "
+					+ (R_DEFAULT + R_RESOLVED + R_INTERESTING + R_CASE + R_UNQUALIFIED + R_NON_RESTRICTED) + "}",
+			result);
+}
+
+public void testGH1587_onConstructorWithArgumentsBeforeFirstArgument_withinChainedMethodInvocationExpression_expectConstructorCompletion()
+		throws JavaModelException {
+	this.workingCopies = new ICompilationUnit[3];
+	this.workingCopies[2] = getWorkingCopy("/Completion/src/GHXYZObject.java", """
+			public class GHXYZObject {
+				public GHXYZObject(String name, int type){}
+			}
+			""");
+	this.workingCopies[1] = getWorkingCopy("/Completion/src/GHXYZReciever.java", """
+			public class GHXYZReciever {
+				public GHXYZReciever foo(GHXYZObject input) {
+					return this;
+				}
+				public GHXYZReciever bar(String name) {
+					return this;
+				}
+			}
+			""");
+	this.workingCopies[0] = getWorkingCopy("/Completion/src/GHXYZ.java", """
+			public class GHXYZ {
+				public static void foo() {
+					new GHXYZReciever().name("bar").foo(new GHXYZObject(null, 0));
+				}
+			}
+			""");
+
+	CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
+	requestor.allowAllRequiredProposals();
+
+	String str = this.workingCopies[0].getSource();
+	String completeBehind = "new GHXYZObject(";
+	int cursorLocation = str.lastIndexOf(completeBehind) + completeBehind.length();
+	this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner, new NullProgressMonitor());
+
+	String result = requestor.getResults();
+	assertResults(
+			"GHXYZObject[METHOD_REF<CONSTRUCTOR>]{, LGHXYZObject;, (Ljava.lang.String;I)V, GHXYZObject, (name, type), "
+					+ (R_DEFAULT + R_INTERESTING + R_RESOLVED + R_NON_RESTRICTED) + "}\n"
+					+ "foo[METHOD_REF]{foo(), LGHXYZ;, ()V, foo, null, "
+					+ (R_DEFAULT + R_RESOLVED + R_INTERESTING + R_NON_STATIC) + "}\n"
+					+ "GHXYZ[TYPE_REF]{GHXYZ, , LGHXYZ;, null, null, "
+					+ (R_DEFAULT + R_RESOLVED + R_INTERESTING + R_CASE + R_UNQUALIFIED + R_NON_RESTRICTED) + "}",
+			result);
+}
+
 }

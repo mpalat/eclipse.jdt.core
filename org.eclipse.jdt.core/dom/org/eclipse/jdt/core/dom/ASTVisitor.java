@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2022 IBM Corporation and others.
+ * Copyright (c) 2000, 2023 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -627,25 +627,6 @@ public abstract class ASTVisitor {
 	 * @since 3.1
 	 */
 	public boolean visit(EnhancedForStatement node) {
-		return true;
-	}
-
-	/**
-	 * Visits the given type-specific AST node.
-	 * <p>
-	 * The default implementation does nothing and return true.
-	 * Subclasses may reimplement.
-	 * </p>
-	 *
-	 * @param node the node to visit
-	 * @return <code>true</code> if the children of this node should be
-	 * visited, and <code>false</code> if the children of this node should
-	 * be skipped
-	 *
-	 * @since 3.33
-	 * @noreference This method is not intended to be referenced by clients.
-	 */
-	public boolean visit(EnhancedForWithRecordPattern node) {
 		return true;
 	}
 
@@ -1531,6 +1512,23 @@ public abstract class ASTVisitor {
 	 * @return <code>true</code> if the children of this node should be
 	 * visited, and <code>false</code> if the children of this node should
 	 * be skipped
+	 * @since 3.38
+	 */
+	public boolean visit(EitherOrMultiPattern node) {
+		return true;
+	}
+
+	/**
+	 * Visits the given type-specific AST node.
+	 * <p>
+	 * The default implementation does nothing and return true.
+	 * Subclasses may reimplement.
+	 * </p>
+	 *
+	 * @param node the node to visit
+	 * @return <code>true</code> if the children of this node should be
+	 * visited, and <code>false</code> if the children of this node should
+	 * be skipped
 	 */
 	public boolean visit(ReturnStatement node) {
 		return true;
@@ -2098,6 +2096,74 @@ public abstract class ASTVisitor {
 	public boolean visit(YieldStatement node) {
 		return true;
 	}
+	/**
+	 * Visits the given type-specific AST node.
+	 * <p>
+	 * The default implementation does nothing and returns true.
+	 * Subclasses may reimplement.
+	 * </p>
+	 *
+	 * @param node the node to visit
+	 * @return <code>true</code> if the children of this node should be
+	 * visited, and <code>false</code> if the children of this node should
+	 * be skipped
+	 * @since 3.37
+	 * @noreference This method is not intended to be referenced by clients.
+	 */
+	public boolean visit(StringTemplateExpression node) {
+		return true;
+	}
+	/**
+	 * Visits the given type-specific AST node.
+	 * <p>
+	 * The default implementation does nothing and returns true.
+	 * Subclasses may reimplement.
+	 * </p>
+	 *
+	 * @param node the node to visit
+	 * @return <code>true</code> if the children of this node should be
+	 * visited, and <code>false</code> if the children of this node should
+	 * be skipped
+	 * @since 3.37
+	 * @noreference This method is not intended to be referenced by clients.
+	 */
+	public boolean visit(StringFragment node) {
+		return true;
+	}
+	/**
+	 * Visits the given type-specific AST node.
+	 * <p>
+	 * The default implementation does nothing and returns true.
+	 * Subclasses may reimplement.
+	 * </p>
+	 *
+	 * @param node the node to visit
+	 * @return <code>true</code> if the children of this node should be
+	 * visited, and <code>false</code> if the children of this node should
+	 * be skipped
+	 * @since 3.37
+	 * @noreference This method is not intended to be referenced by clients.
+	 */
+	public boolean visit(StringTemplateComponent node) {
+		return true;
+	}
+
+	/**
+	 * Visits the given type-specific AST node.
+	 * <p>
+	 * The default implementation does nothing and returns true.
+	 * Subclasses may reimplement.
+	 * </p>
+	 *
+	 * @param implicitTypeDeclaration the ImplicitTypeDeclaration to visit
+	 * @return <code>true</code> if the children of this node should be
+	 * visited, and <code>false</code> if the children of this node should
+	 * be skipped
+	 * @since 3.38
+	 */
+	public boolean visit(ImplicitTypeDeclaration implicitTypeDeclaration) {
+		return true;
+	}
 
 	/**
 	 * End of visit the given type-specific AST node.
@@ -2419,20 +2485,6 @@ public abstract class ASTVisitor {
 	 * @since 3.1
 	 */
 	public void endVisit(EnhancedForStatement node) {
-		// default implementation: do nothing
-	}
-
-	/**
-	 * End of visit the given type-specific AST node.
-	 * <p>
-	 * The default implementation does nothing. Subclasses may reimplement.
-	 * </p>
-	 *
-	 * @param node the node to visit
-	 * @since 3.33
-	 * @noreference This method is not intended to be referenced by clients.
-	 */
-	public void endVisit(EnhancedForWithRecordPattern node) {
 		// default implementation: do nothing
 	}
 
@@ -3088,6 +3140,20 @@ public abstract class ASTVisitor {
 	/**
 	 * End of visit the given type-specific AST node.
 	 * <p>
+	 * The default implementation does nothing. Subclasses may re implement.
+	 * </p>
+	 *
+	 * @param node the node to visit
+	 * @since 3.37
+	 * @noreference This method is not intended to be referenced by clients.
+	 */
+	public void endVisit(EitherOrMultiPattern node) {
+		// default implementation: do nothing
+	}
+
+	/**
+	 * End of visit the given type-specific AST node.
+	 * <p>
 	 * The default implementation does nothing. Subclasses may reimplement.
 	 * </p>
 	 *
@@ -3531,4 +3597,39 @@ public abstract class ASTVisitor {
 	public void endVisit(YieldStatement node) {
 		// default implementation: do nothing
 	}
+
+	/**
+	 * @since 3.37
+	 * @noreference This method is not intended to be referenced by clients.
+	 */
+	public void endVisit(StringTemplateExpression node) {
+		// default implementation: do nothing
+	}
+	/**
+	 * @since 3.37
+	 * @noreference This method is not intended to be referenced by clients.
+	 */
+	public void endVisit(StringFragment node) {
+		// default implementation: do nothing
+	}
+	/**
+	 * @since 3.37
+	 * @noreference This method is not intended to be referenced by clients.
+	 */
+	public void endVisit(StringTemplateComponent node) {
+		// default implementation: do nothing
+	}
+	/**
+	 * End of visit the given type-specific AST node.
+	 * <p>
+	 * The default implementation does nothing. Subclasses may reimplement.
+	 * </p>
+	 *
+	 * @param node the node to visit
+	 * @since 3.38
+	 */
+	public void endVisit(ImplicitTypeDeclaration node) {
+		// default implementation: do nothing
+	}
+
 }

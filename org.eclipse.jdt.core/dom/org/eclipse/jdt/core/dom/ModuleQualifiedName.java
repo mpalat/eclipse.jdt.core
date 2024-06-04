@@ -79,7 +79,7 @@ public class ModuleQualifiedName extends Name {
 	 * The identifier; lazily initialized; defaults to a unspecified, legal
 	 * Java identifier.
 	 */
-	private Name moduleQualifier = null;
+	private volatile Name moduleQualifier;
 
 	/**
 	 * The name being module veysqualified; lazily initialized; defaults to a unspecified,
@@ -227,7 +227,7 @@ public class ModuleQualifiedName extends Name {
 	}
 
 	@Override
-	void appendName(StringBuffer buffer) {
+	void appendName(StringBuilder buffer) {
 		getModuleQualifier().appendName(buffer);
 		buffer.append('/');
 		if (getName() != null) {

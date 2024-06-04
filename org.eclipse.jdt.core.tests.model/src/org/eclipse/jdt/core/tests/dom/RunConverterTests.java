@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2023 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -60,6 +60,8 @@ public static Class[] getAllTestClasses() {
 		ASTConverter_17Test.class,
 		ASTConverter_GuardedPattern_Test.class,
 		ASTConverter_RecordPattern_Test.class,
+		ASTConverterStringTemplateTest.class,
+		ASTConverterSuperAfterStatements.class,
 	};
 }
 public static Test suite() {

@@ -39,7 +39,6 @@ import org.eclipse.jdt.internal.compiler.util.Util;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -216,8 +215,7 @@ private Hashtable<String, String> getSecondaryTypes(String qualifiedPackageName)
 	File[] listFiles = dir.isDirectory() ? dir.listFiles() : null;
 	if (listFiles == null) return packageEntry;
 
-	for (int i = 0, l = listFiles.length; i < l; ++i) {
-		File f = listFiles[i];
+	for (File f : listFiles) {
 		if (f.isDirectory()) continue;
 		String s = f.getAbsolutePath();
 		if (s == null) continue;
@@ -235,8 +233,7 @@ private Hashtable<String, String> getSecondaryTypes(String qualifiedPackageName)
 		CompilationUnitDeclaration unit = parser.parse(cu, compilationResult);
 		org.eclipse.jdt.internal.compiler.ast.TypeDeclaration[] types = unit != null ? unit.types : null;
 		if (types == null) continue;
-		for (int j = 0, k = types.length; j < k; j++) {
-			TypeDeclaration type = types[j];
+		for (TypeDeclaration type : types) {
 			char[] name = type.isSecondary() ? type.name : null;  // add only secondary types
 			if (name != null)
 				packageEntry.put(new String(name), s);
@@ -345,7 +342,7 @@ public boolean hasCUDeclaringPackage(String qualifiedPackageName, Function<Compi
 public char[][] listPackages() {
 	Set<String> packageNames = new HashSet<>();
 	try {
-		Path basePath = FileSystems.getDefault().getPath(this.path);
+		Path basePath = Path.of(this.path);
 		Files.walkFileTree(basePath, new SimpleFileVisitor<Path>() {
 			@Override
 			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {

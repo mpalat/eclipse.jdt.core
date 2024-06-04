@@ -110,7 +110,7 @@ public class InfixExpression extends Expression {
 		public static final Operator GREATER = new Operator(">");//$NON-NLS-1$
 		/** Less than or equals "&lt;=" operator. */
 		public static final Operator LESS_EQUALS = new Operator("<=");//$NON-NLS-1$
-		/** Greater than or equals "&gt=;" operator. */
+		/** Greater than or equals "&gt;=" operator. */
 		public static final Operator GREATER_EQUALS = new Operator(">=");//$NON-NLS-1$
 		/** Equals "==" operator. */
 		public static final Operator EQUALS = new Operator("==");//$NON-NLS-1$
@@ -155,8 +155,8 @@ public class InfixExpression extends Expression {
 					CONDITIONAL_OR,
 					CONDITIONAL_AND,
 				};
-			for (int i = 0; i < ops.length; i++) {
-				CODES.put(ops[i].toString(), ops[i]);
+			for (Operator op : ops) {
+				CODES.put(op.toString(), op);
 			}
 		}
 
@@ -247,13 +247,13 @@ public class InfixExpression extends Expression {
 	 * The left operand; lazily initialized; defaults to an unspecified,
 	 * but legal, simple name.
 	 */
-	private Expression leftOperand = null;
+	private volatile Expression leftOperand;
 
 	/**
 	 * The right operand; lazily initialized; defaults to an unspecified,
 	 * but legal, simple name.
 	 */
-	private Expression rightOperand = null;
+	private volatile Expression rightOperand;
 
 	/**
 	 * The list of extended operand expressions (element type:

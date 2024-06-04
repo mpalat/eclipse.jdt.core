@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2023 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -33,8 +33,8 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-
-import org.eclipse.core.internal.resources.CharsetDeltaJob;
+import junit.framework.Test;
+import junit.framework.TestSuite;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
@@ -129,9 +129,6 @@ import org.eclipse.jdt.internal.core.ResolvedSourceType;
 import org.eclipse.jdt.internal.core.search.BasicSearchEngine;
 import org.eclipse.jdt.internal.core.util.Util;
 
-import junit.framework.Test;
-import junit.framework.TestSuite;
-
 @SuppressWarnings({"rawtypes", "unchecked"})
 public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 
@@ -170,6 +167,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 	protected static boolean isJRE19 = false;
 	protected static boolean isJRE20 = false;
 	protected static boolean isJRE21 = false;
+	protected static boolean isJRE22 = false;
 	static {
 		String javaVersion = System.getProperty("java.version");
 		String vmName = System.getProperty("java.vm.name");
@@ -182,6 +180,9 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 			}
 		}
 		long jdkLevel = CompilerOptions.versionToJdkLevel(javaVersion.length() > 3 ? javaVersion.substring(0, 3) : javaVersion);
+		if (jdkLevel >= ClassFileConstants.JDK22) {
+			isJRE22 = true;
+		}
 		if (jdkLevel >= ClassFileConstants.JDK21) {
 			isJRE21 = true;
 		}
@@ -300,6 +301,10 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 	 */
 	protected static final int AST_INTERNAL_JLS21 = AST.JLS21;
 	/**
+	 * Internal synonym for constant AST.JSL22
+	 */
+	protected static final int AST_INTERNAL_JLS22 = AST.JLS22;
+	/**
 	 * Internal synonym for the latest AST level.
 	 */
 	protected static final int AST_INTERNAL_LATEST = AST.getJLSLatest();
@@ -314,7 +319,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 	}
 
 	public static class ProblemRequestor implements IProblemRequestor {
-		public StringBuffer problems;
+		public StringBuilder problems;
 		public int problemCount;
 		protected char[] unitSource;
 		public boolean isActive = true;
@@ -340,7 +345,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 			this.unitSource = source;
 		}
 		public void reset() {
-			this.problems = new StringBuffer();
+			this.problems = new StringBuilder();
 			this.problemCount = 0;
 		}
 	}
@@ -354,7 +359,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		 * <code>#startDeltas</code> and
 		 * <code>#stopDeltas</code>.
 		 */
-		private IJavaElementDelta[] deltas;
+		private ArrayList<IJavaElementDelta> deltas = new ArrayList<>();
 
 		private final int eventType;
 
@@ -373,10 +378,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 
 		public synchronized void elementChanged(ElementChangedEvent event) {
 			if (this.eventType == -1 || event.getType() == this.eventType) {
-				IJavaElementDelta[] copy= new IJavaElementDelta[this.deltas.length + 1];
-				System.arraycopy(this.deltas, 0, copy, 0, this.deltas.length);
-				copy[this.deltas.length]= event.getDelta();
-				this.deltas= copy;
+				this.deltas.add(event.getDelta());
 				StringBuilder message = new StringBuilder();
 				Job currentJob = Job.getJobManager().currentJob();
 				if (currentJob != null) {
@@ -389,8 +391,8 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 			}
 		}
 		public synchronized CompilationUnit getCompilationUnitAST(ICompilationUnit workingCopy) {
-			for (int i=0, length= this.deltas.length; i<length; i++) {
-				CompilationUnit result = getCompilationUnitAST(workingCopy, this.deltas[i]);
+			for (IJavaElementDelta delta: this.deltas) {
+				CompilationUnit result = getCompilationUnitAST(workingCopy,delta);
 				if (result != null)
 					return result;
 			}
@@ -418,8 +420,8 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 			if (this.deltas == null) waitForResourceDelta();
 			if (this.deltas == null) return null;
 			IJavaElementDelta result = null;
-			for (int i = 0; i < this.deltas.length; i++) {
-				IJavaElementDelta delta = searchForDelta(element, this.deltas[i]);
+			for (IJavaElementDelta delta1: this.deltas) {
+				IJavaElementDelta delta = searchForDelta(element, delta1);
 				if (delta != null) {
 					if (returnFirst) {
 						return delta;
@@ -431,15 +433,15 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		}
 
 		public synchronized IJavaElementDelta getLastDelta() {
-			return this.deltas[this.deltas.length - 1];
+			return this.deltas.get(this.deltas.size()-1);
 		}
 
 		public synchronized List<IJavaElementDelta> getAllDeltas() {
-			return List.of(this.deltas);
+			return this.deltas;
 		}
 
 		public synchronized void flush() {
-			this.deltas = new IJavaElementDelta[0];
+			this.deltas.clear();
 			this.stackTraces = new ByteArrayOutputStream();
 			this.gotResourceDelta = false;
 		}
@@ -512,8 +514,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		@Override
 		public synchronized String toString() {
 			StringBuilder buffer = new StringBuilder();
-			for (int i = 0, length= this.deltas.length; i < length; i++) {
-				IJavaElementDelta delta = this.deltas[i];
+			for (IJavaElementDelta delta: this.deltas) {
 				if (((JavaElementDelta) delta).ignoreFromTests) {
 					continue;
 				}
@@ -561,7 +562,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 	protected DeltaListener deltaListener = new DeltaListener();
 
 	public static class LogListenerWithHistory implements ILogListener {
-		private final StringBuffer buffer = new StringBuffer();
+		private final StringBuilder buffer = new StringBuilder();
 		private final List<IStatus> logs = new ArrayList<>();
 
 		public void logging(IStatus status, String plugin) {
@@ -976,7 +977,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 
 	protected void assertResourceTreeEquals(String message, String expected, Object[] resources) throws CoreException {
 		sortResources(resources);
-		StringBuffer buffer = new StringBuffer();
+		StringBuilder buffer = new StringBuilder();
 		for (int i = 0, length = resources.length; i < length; i++) {
 			printResourceTree(resources[i], buffer, 0);
 			if (i != length-1) buffer.append("\n");
@@ -992,7 +993,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		);
 	}
 
-	private void printResourceTree(Object resource, StringBuffer buffer, int indent) throws CoreException {
+	private void printResourceTree(Object resource, StringBuilder buffer, int indent) throws CoreException {
 		for (int i = 0; i < indent; i++)
 			buffer.append("  ");
 		if (resource instanceof IResource) {
@@ -1130,7 +1131,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 	}
 
 	protected void assertMemberValuePairEquals(String expected, IMemberValuePair member) throws JavaModelException {
-		StringBuffer buffer = new StringBuffer();
+		StringBuilder buffer = new StringBuilder();
 		appendAnnotationMember(buffer, member);
 		String actual = buffer.toString();
 		if (!expected.equals(actual)) {
@@ -1187,7 +1188,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		assertEquals(message, expected, actual);
 	}
 	protected void assertAnnotationsEqual(String expected, IAnnotation[] annotations) throws JavaModelException {
-		StringBuffer buffer = new StringBuffer();
+		StringBuilder buffer = new StringBuilder();
 		for (int i = 0; i < annotations.length; i++) {
 			IAnnotation annotation = annotations[i];
 			appendAnnotation(buffer, annotation);
@@ -1200,7 +1201,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		assertEquals("Unexpected annotations", expected, actual);
 	}
 
-	protected void appendAnnotation(StringBuffer buffer, IAnnotation annotation) throws JavaModelException {
+	protected void appendAnnotation(StringBuilder buffer, IAnnotation annotation) throws JavaModelException {
 		buffer.append('@');
 		buffer.append(annotation.getElementName());
 		IMemberValuePair[] members = annotation.getMemberValuePairs();
@@ -1216,7 +1217,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		}
 	}
 
-	private void appendAnnotationMember(StringBuffer buffer, IMemberValuePair member) throws JavaModelException {
+	private void appendAnnotationMember(StringBuilder buffer, IMemberValuePair member) throws JavaModelException {
 		if (member == null) {
 			buffer.append("<null>");
 			return;
@@ -1244,7 +1245,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		}
 	}
 
-	private void appendAnnotationMemberValue(StringBuffer buffer, Object value, int kind) throws JavaModelException {
+	private void appendAnnotationMemberValue(StringBuilder buffer, Object value, int kind) throws JavaModelException {
 		if (value == null) {
 			buffer.append("<null>");
 			return;
@@ -1607,6 +1608,14 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		listener.flush();
 	}
 	public void clearDeltas() {
+		// We must join on the auto-refresh family because the workspace changes done in the
+		// tests may be batched and broadcasted by the RefreshJob, not the main thread.
+		Job.getJobManager().wakeUp(ResourcesPlugin.FAMILY_AUTO_REFRESH);
+		try {
+			Job.getJobManager().join(ResourcesPlugin.FAMILY_AUTO_REFRESH, null);
+		} catch (InterruptedException e) {
+			throw new RuntimeException(e);
+		}
 		this.deltaListener.flush();
 	}
 	protected IJavaElement[] codeSelect(ISourceReference sourceReference, String selectAt, String selection) throws JavaModelException {
@@ -1635,11 +1644,8 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		}
 
 		// write bytes to dest
-		FileOutputStream out = new FileOutputStream(dest);
-		try {
+		try (FileOutputStream out = new FileOutputStream(dest)) {
 			out.write(srcBytes);
-		} finally {
-			out.close();
 		}
 	}
 
@@ -2380,6 +2386,12 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 					options.put(CompilerOptions.OPTION_Compliance, CompilerOptions.VERSION_21);
 					options.put(CompilerOptions.OPTION_Source, CompilerOptions.VERSION_21);
 					options.put(CompilerOptions.OPTION_TargetPlatform, CompilerOptions.VERSION_21);
+					javaProject.setOptions(options);
+				} else if ("22".equals(compliance)) {
+					Map options = new HashMap();
+					options.put(CompilerOptions.OPTION_Compliance, CompilerOptions.VERSION_22);
+					options.put(CompilerOptions.OPTION_Source, CompilerOptions.VERSION_22);
+					options.put(CompilerOptions.OPTION_TargetPlatform, CompilerOptions.VERSION_22);
 					javaProject.setOptions(options);
 				}
 				result[0] = javaProject;
@@ -3385,7 +3397,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 	}
 
 	/**
-	 * Check locally for the required JCL files, <jclName>.jar and <jclName>src.zip.
+	 * Check locally for the required JCL files, {@code <jclName>.jar} and {@code <jclName>src.zip}.
 	 * If not available, copy from the project resources.
 	 */
 	public void setupExternalJCL(String jclName) throws IOException {
@@ -3463,6 +3475,7 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		javaProject.setOption(JavaCore.COMPILER_COMPLIANCE, compliance);
 		javaProject.setOption(JavaCore.COMPILER_SOURCE, compliance);
 		javaProject.setOption(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, compliance);
+		javaProject.setOption(CompilerOptions.OPTION_SimulateOperandStack, CompilerOptions.DISABLED);
 		return javaProject;
 	}
 	protected void setUpProjectCompliance(IJavaProject javaProject, String compliance) throws JavaModelException, IOException {
@@ -3485,10 +3498,14 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 				newJclSrcString = "JCL18_SRC"; // Use the same source
 			}
 		} else {
-			if (compliance.equals("21")) {
+			if (compliance.equals("22")) {
+				// Reuse the same 17 stuff as of now. No real need for a new one
+				newJclLibString = "JCL_21_LIB";
+				newJclSrcString = "JCL_21_SRC";
+			} else			if (compliance.equals("21")) {
 				// Reuse the same 14 stuff as of now. No real need for a new one
-				newJclLibString = "JCL_17_LIB";
-				newJclSrcString = "JCL_17_SRC";
+				newJclLibString = "JCL_21_LIB";
+				newJclSrcString = "JCL_21_SRC";
 			} else if (compliance.equals("19")) {
 				// Reuse the same 14 stuff as of now. No real need for a new one
 				newJclLibString = "JCL_19_LIB";
@@ -3576,11 +3593,13 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		IPath jcl14Lib = new Path("JCL14_LIB");
 		IPath jcl17Lib = new Path("JCL_17_LIB");
 		IPath jcl21Lib = new Path("JCL_21_LIB");
+		IPath jcl22Lib = new Path("JCL_22_LIB");
 		IPath jclFull = new Path("JCL18_FULL");
 
 		return path.equals(jclLib) || path.equals(jcl5Lib) || path.equals(jcl8Lib) || path.equals(jcl9Lib)
 				|| path.equals(jcl10Lib) ||  path.equals(jcl11Lib) || path.equals(jcl12Lib) || path.equals(jcl13Lib)
-				|| path.equals(jcl14Lib) || path.equals(jcl17Lib) || path.equals(jcl21Lib) || path.equals(jclFull);
+				|| path.equals(jcl14Lib) || path.equals(jcl17Lib) || path.equals(jcl21Lib) || path.equals(jcl22Lib)
+				|| path.equals(jclFull);
 	}
 	public void setUpJCLClasspathVariables(String compliance) throws JavaModelException, IOException {
 		setUpJCLClasspathVariables(compliance, false);
@@ -3693,10 +3712,18 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 			}
 		} else if ("21".equals(compliance)) {
 			if (JavaCore.getClasspathVariable("JCL_21_LIB") == null) {
-				setupExternalJCL("jclMin17");
+				setupExternalJCL("jclMin21");
 				JavaCore.setClasspathVariables(
-					new String[] {"JCL_17_LIB", "JCL_17_SRC", "JCL_SRCROOT"},
-					new IPath[] {getExternalJCLPath("17"), getExternalJCLSourcePath("17"), getExternalJCLRootSourcePath()},
+					new String[] {"JCL_21_LIB", "JCL_21_SRC", "JCL_SRCROOT"},
+					new IPath[] {getExternalJCLPath("21"), getExternalJCLSourcePath("21"), getExternalJCLRootSourcePath()},
+					null);
+			}
+		} else if ("22".equals(compliance)) {
+			if (JavaCore.getClasspathVariable("JCL_22_LIB") == null) {
+				setupExternalJCL("jclMin21");
+				JavaCore.setClasspathVariables(
+					new String[] {"JCL_21_LIB", "JCL_21_SRC", "JCL_SRCROOT"},
+					new IPath[] {getExternalJCLPath("21"), getExternalJCLSourcePath("21"), getExternalJCLRootSourcePath()},
 					null);
 			}
 		} else {
@@ -3992,9 +4019,10 @@ public abstract class AbstractJavaModelTests extends SuiteOfTestCases {
 		return new Path(System.getProperty("java.home") + "/lib/jrt-fs.jar");
 	}
 
+	@SuppressWarnings("restriction")
 	public void waitForCharsetDeltaJob() throws CoreException {
 		try {
-			Job.getJobManager().join(CharsetDeltaJob.FAMILY_CHARSET_DELTA, null);
+			Job.getJobManager().join(org.eclipse.core.internal.resources.CharsetDeltaJob.FAMILY_CHARSET_DELTA, null);
 		} catch (OperationCanceledException | InterruptedException e) {
 			throw new CoreException(new Status(IStatus.ERROR, JavaCore.PLUGIN_ID, e.getMessage(), e));
 		}

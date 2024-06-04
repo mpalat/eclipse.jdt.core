@@ -678,7 +678,7 @@ public void testBug553149_3() throws JavaModelException {
 		elements
 	);
 }
-public void _testBug553149_4() throws JavaModelException {
+public void testBug553149_4() throws JavaModelException {
 	this.wc = getWorkingCopy("/Resolve15/src/X.java",
 			"public class X {\n"
 					+ "    protected Object x_ = \"FIELD X\";\n"
@@ -690,17 +690,17 @@ public void _testBug553149_4() throws JavaModelException {
 					+ "    }\n"
 					+ "}");
 	String str = this.wc.getSource();
-	String selection = "x_ instanceof";
+	String selection = "x_";
 	int start = str.lastIndexOf(selection);
 	int length = "x_".length();
 	IJavaElement[] elements = this.wc.codeSelect(start, length);
 	assertElementsEqual(
 		"Unexpected elements",
-		"x_ [in X [in [Working copy] X.java [in <default> [in src [in Resolve15]]]]]",
+		"x_ [in f(Object, boolean) [in X [in [Working copy] X.java [in <default> [in src [in Resolve15]]]]]]",
 		elements
 	);
 }
-public void _testBug553149_5() throws JavaModelException {
+public void testBug553149_5() throws JavaModelException {
 	this.wc = getWorkingCopy("/Resolve15/src/X.java",
 			"public class X {\n"
 					+ "    protected Object x_ = \"FIELD X\";\n"
@@ -1699,6 +1699,37 @@ public void testGH1568_5() throws JavaModelException {
 	assertElementsEqual(
 		"Unexpected elements",
 		"row [in main(String[]) [in RowRenderData [in [Working copy] X.java [in <default> [in src [in Resolve15]]]]]]",
+		elements
+	);
+}
+// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/2443
+// ArrayStoreException in SelectionParser.buildMoreCompletionContext
+public void testGH2443() throws JavaModelException {
+	this.wc = getWorkingCopy("/Resolve15/src/X.java",
+					"""
+					 public class X {
+
+						public static void main(String[] args) {
+
+							for (String sourcePath : args) {
+								new X() {
+									public void foo(String file) {
+										file.hashCode();
+									}
+
+								};
+							}
+						}
+					}
+					""");
+	String str = this.wc.getSource();
+	String selection = "file";
+	int start = str.lastIndexOf(selection);
+	int length = selection.length();
+	IJavaElement[] elements = this.wc.codeSelect(start, length);
+	assertElementsEqual(
+		"Unexpected elements",
+		"file [in foo(String) [in <anonymous #1> [in main(String[]) [in X [in [Working copy] X.java [in <default> [in src [in Resolve15]]]]]]]]",
 		elements
 	);
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2018 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -244,6 +244,13 @@ public TypeBinding checkFieldAccess(BlockScope scope) {
 		if (scope.compilerOptions().getSeverity(CompilerOptions.UnqualifiedFieldAccess) != ProblemSeverities.Ignore) {
 			scope.problemReporter().unqualifiedFieldAccess(this, fieldBinding);
 		}
+		if (this.inPreConstructorContext && this.actualReceiverType != null) {
+			MethodScope ms = scope.methodScope();
+			MethodBinding method = ms != null ? ms.referenceMethodBinding() : null;
+			if (method != null && TypeBinding.equalsEquals(method.declaringClass, this.actualReceiverType)) {
+				scope.problemReporter().errorExpressionInPreConstructorContext(this);
+			}
+		}
 		// must check for the static status....
 		if (methodScope.isStatic) {
 			scope.problemReporter().staticFieldAccessToNonStaticVariable(this, fieldBinding);
@@ -424,6 +431,7 @@ public void generateAssignment(BlockScope currentScope, CodeStream codeStream, A
 
 @Override
 public void generateCode(BlockScope currentScope, CodeStream codeStream, boolean valueRequired) {
+	emitDeclaringClassOfConstant(codeStream);
 	int pc = codeStream.position;
 	if (this.constant != Constant.NotAConstant) {
 		if (valueRequired) {
@@ -995,7 +1003,7 @@ public TypeBinding postConversionType(Scope scope) {
 }
 
 @Override
-public StringBuffer printExpression(int indent, StringBuffer output){
+public StringBuilder printExpression(int indent, StringBuilder output){
 	return output.append(this.token);
 }
 public TypeBinding reportError(BlockScope scope) {

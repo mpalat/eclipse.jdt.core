@@ -49,7 +49,6 @@ import org.eclipse.jdt.internal.compiler.flow.FlowContext;
 import org.eclipse.jdt.internal.compiler.flow.FlowInfo;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.compiler.impl.Constant;
-import org.eclipse.jdt.internal.compiler.lookup.AnnotationBinding;
 import org.eclipse.jdt.internal.compiler.lookup.Binding;
 import org.eclipse.jdt.internal.compiler.lookup.BlockScope;
 import org.eclipse.jdt.internal.compiler.lookup.ExtraCompilerModifiers;
@@ -130,8 +129,7 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 			for (int i = 0, count = this.arguments.length; i < count; i++) {
 				flowInfo = this.arguments[i].analyseCode(currentScope, flowContext, flowInfo);
 				if (analyseResources && !hasResourceWrapperType) { // allocation of wrapped closeables is analyzed specially
-					// if argument is an AutoCloseable insert info that it *may* be closed (by the target method, i.e.)
-					flowInfo = FakedTrackingVariable.markPassedToOutside(currentScope, this.arguments[i], flowInfo, flowContext, false);
+					flowInfo = handleResourcePassedToInvocation(currentScope, this.binding, this.arguments[i], i, flowContext, flowInfo);
 				}
 				this.arguments[i].checkNPEbyUnboxing(currentScope, flowContext, flowInfo);
 			}
@@ -160,7 +158,7 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 
 		// after having analysed exceptions above start tracking newly allocated resource:
 		if (currentScope.compilerOptions().analyseResourceLeaks && FakedTrackingVariable.isAnyCloseable(this.resolvedType)) {
-			FakedTrackingVariable.analyseCloseableAllocation(currentScope, flowInfo, this);
+			FakedTrackingVariable.analyseCloseableAllocation(currentScope, flowInfo, flowContext, this);
 		}
 
 		manageEnclosingInstanceAccessIfNecessary(currentScope, flowInfo);
@@ -200,7 +198,7 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 			codeStream.generateInlinedValue(this.enumConstant.binding.id);
 		}
 		// handling innerclass instance allocation - enclosing instance arguments
-		if (allocatedType.isNestedType()) {
+		if (allocatedType.isNestedType() && !this.inPreConstructorContext) {
 			codeStream.generateSyntheticEnclosingInstanceValues(
 				currentScope,
 				allocatedType,
@@ -285,7 +283,7 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 	}
 
 	@Override
-	public StringBuffer printExpression(int indent, StringBuffer output) {
+	public StringBuilder printExpression(int indent, StringBuilder output) {
 		if (this.enclosingInstance != null)
 			this.enclosingInstance.printExpression(0, output).append('.');
 		super.printExpression(0, output);
@@ -313,7 +311,7 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 							this.typeArguments[i].checkNullConstraints(scope, (ParameterizedGenericMethodBinding) this.binding, typeVariables, i);
 					}
 					if (this.resolvedType.isValidBinding()) {
-						this.resolvedType = scope.environment().createAnnotatedType(this.resolvedType, new AnnotationBinding[] {scope.environment().getNonNullAnnotation()});
+						this.resolvedType = scope.environment().createNonNullAnnotatedType(this.resolvedType);
 					}
 				}
 			}
@@ -322,6 +320,7 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 				this.resolvedType = scope.environment().createAnnotatedType(this.resolvedType, this.binding.getTypeAnnotations());
 			}
 		}
+		checkPreConstructorContext(scope);
 		return result;
 	}
 
@@ -420,8 +419,8 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 				}
 				if (this.argumentsHaveErrors) {
 					if (this.arguments != null) { // still attempt to resolve arguments
-						for (int i = 0, max = this.arguments.length; i < max; i++) {
-							this.arguments[i].resolveType(scope);
+						for (Expression argument : this.arguments) {
+							argument.resolveType(scope);
 						}
 					}
 					return null;
@@ -591,7 +590,8 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 			scope.problemReporter().missingTypeInConstructor(this, constructorBinding);
 		}
 		if (this.enclosingInstance != null) {
-			ReferenceBinding targetEnclosing = constructorBinding.declaringClass.enclosingType();
+			ReferenceBinding targetEnclosing =
+					!constructorBinding.declaringClass.isNestedType() || constructorBinding.declaringClass.isStatic() ? null : constructorBinding.declaringClass.enclosingType();
 			if (targetEnclosing == null) {
 				scope.problemReporter().unnecessaryEnclosingInstanceSpecification(this.enclosingInstance, receiver);
 				return this.resolvedType;
@@ -678,8 +678,8 @@ public class QualifiedAllocationExpression extends AllocationExpression {
 			if (this.enclosingInstance != null)
 				this.enclosingInstance.traverse(visitor, scope);
 			if (this.typeArguments != null) {
-				for (int i = 0, typeArgumentsLength = this.typeArguments.length; i < typeArgumentsLength; i++) {
-					this.typeArguments[i].traverse(visitor, scope);
+				for (TypeReference typeArgument : this.typeArguments) {
+					typeArgument.traverse(visitor, scope);
 				}
 			}
 			if (this.type != null) // case of enum constant

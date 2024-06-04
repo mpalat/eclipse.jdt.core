@@ -49,7 +49,7 @@ public boolean isThis() {
 }
 
 @Override
-public StringBuffer printExpression(int indent, StringBuffer output) {
+public StringBuilder printExpression(int indent, StringBuilder output) {
 	return this.qualification.print(0, output).append(".super"); //$NON-NLS-1$
 }
 
@@ -71,6 +71,8 @@ public TypeBinding resolveType(BlockScope scope) {
 		scope.problemReporter().cannotUseSuperInJavaLangObject(this);
 		return null;
 	}
+	if (this.inPreConstructorContext)
+		scope.problemReporter().errorExpressionInPreConstructorContext(this);
 	return this.resolvedType = (this.currentCompatibleType.isInterface()
 			? this.currentCompatibleType
 			: this.currentCompatibleType.superclass());

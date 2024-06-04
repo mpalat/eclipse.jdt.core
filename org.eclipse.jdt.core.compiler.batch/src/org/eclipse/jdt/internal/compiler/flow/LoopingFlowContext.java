@@ -451,8 +451,10 @@ public void complainOnDeferredNullChecks(BlockScope scope, FlowInfo callerFlowIn
 	// propagate breaks
 	if(updateInitsOnBreak) {
 		this.initsOnBreak.addPotentialNullInfoFrom(incomingInfo);
+		this.initsOnBreak.acceptIncomingNullnessFrom(incomingInfo);
 		for (int i = 0; i < this.breakTargetsCount; i++) {
 			this.breakTargetContexts[i].initsOnBreak.addPotentialNullInfoFrom(incomingInfo);
+			this.breakTargetContexts[i].initsOnBreak.acceptIncomingNullnessFrom(incomingInfo);
 		}
 	}
 }
@@ -772,8 +774,8 @@ public void recordUsingNullReference(Scope scope, LocalVariableBinding local,
 	 */
 	public void simulateThrowAfterLoopBack(FlowInfo flowInfo) {
 		if (this.escapingExceptionCatchSites != null) {
-			for (int i = 0, exceptionCount = this.escapingExceptionCatchSites.size(); i < exceptionCount; i++) {
-				((EscapingExceptionCatchSite) this.escapingExceptionCatchSites.get(i)).simulateThrowAfterLoopBack(flowInfo);
+			for (Object site : this.escapingExceptionCatchSites) {
+				((EscapingExceptionCatchSite) site).simulateThrowAfterLoopBack(flowInfo);
 			}
 			this.escapingExceptionCatchSites = null; // don't care for it anymore.
 		}

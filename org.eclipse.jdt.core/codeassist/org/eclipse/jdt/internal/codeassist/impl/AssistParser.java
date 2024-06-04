@@ -48,7 +48,6 @@ import org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
 import org.eclipse.jdt.internal.compiler.ast.ModuleDeclaration;
 import org.eclipse.jdt.internal.compiler.ast.ModuleReference;
 import org.eclipse.jdt.internal.compiler.ast.NameReference;
-import org.eclipse.jdt.internal.compiler.ast.RecordPattern;
 import org.eclipse.jdt.internal.compiler.ast.RequiresStatement;
 import org.eclipse.jdt.internal.compiler.ast.Statement;
 import org.eclipse.jdt.internal.compiler.ast.SuperReference;
@@ -114,6 +113,7 @@ public abstract class AssistParser extends Parser {
 	protected static final int K_LAMBDA_EXPRESSION_DELIMITER = ASSIST_PARSER + 7; // whether we are inside a lambda expression
 	protected static final int K_MODULE_INFO_DELIMITER = ASSIST_PARSER + 8; // whether we are inside a module info declaration
 	protected static final int K_SWITCH_EXPRESSION_DELIMITTER = ASSIST_PARSER + 9; // whether we are inside a switch expression
+	protected static final int K_RECORD_PATTERN = ASSIST_PARSER + 10; // whether we are inside record pattern
 
 	// selector constants
 	protected static final int THIS_CONSTRUCTOR = -1;
@@ -375,16 +375,6 @@ public RecoveredElement buildInitialRecoveryState(){
 						node.traverse(new ASTVisitor() {
 							@SuppressWarnings("synthetic-access")
 							@Override
-							public boolean visit(RecordPattern pattern, BlockScope scope) {
-								LocalDeclaration local = pattern.local;
-								if (local == null)
-									return true;
-								locals.add(local);
-								AssistParser.this.lastCheckPoint = local.declarationSourceEnd + 1;
-								return true;
-							}
-							@SuppressWarnings("synthetic-access")
-							@Override
 							public boolean visit(TypePattern pattern, BlockScope scope) {
 								LocalDeclaration local = pattern.local;
 								if (local == null)
@@ -633,7 +623,7 @@ protected boolean triggerRecoveryUponLambdaClosure(Statement statement, boolean 
 						this.currentElement instanceof RecoveredMethod ? ((RecoveredMethod) this.currentElement).methodBody : null);
 				if (recoveredBlock != null) {
 					RecoveredStatement recoveredStatement = recoveredBlock.statementCount > 0 ? recoveredBlock.statements[recoveredBlock.statementCount - 1] : null;
-					ASTNode parseTree = recoveredStatement != null ? recoveredStatement.updatedStatement(0, new HashSet<TypeDeclaration>()) : null;
+					ASTNode parseTree = recoveredStatement != null ? recoveredStatement.updatedStatement(0, new HashSet<>()) : null;
 					if (parseTree != null) {
 						detectAssistNodeParent(parseTree);
 						if ((parseTree.sourceStart == 0 || parseTree.sourceEnd == 0) || (parseTree.sourceStart >= statementStart && parseTree.sourceEnd <= statementEnd)) {
@@ -1377,6 +1367,8 @@ protected void consumeToken(int token) {
 		adjustBracket(token);
 		switch (token) {
 			case TokenNameLPAREN :
+				if (topKnownElementKind(ASSIST_PARSER) == K_RECORD_PATTERN)
+					break; // after 'case' 'ID(' is *not* the start of an invocation
 				switch (this.previousToken) {
 					case TokenNameIdentifier:
 						this.pushOnElementStack(K_SELECTOR, this.identifierPtr);
@@ -1645,8 +1637,8 @@ protected TypeReference getAssistTypeReferenceForGenericType(int dim, int identi
 		System.arraycopy(typeArguments, 0, typeArguments = new TypeReference[realLength][], 0, realLength);
 
 		boolean isParameterized = false;
-		for (int i = 0; i < typeArguments.length; i++) {
-			if(typeArguments[i] != null) {
+		for (TypeReference[] typeArgument : typeArguments) {
+			if(typeArgument != null) {
 				isParameterized = true;
 				break;
 			}
@@ -2400,9 +2392,9 @@ protected int fallBackToSpringForward(Statement unused) {
 			ignoreNextClosingBrace(); // having ungotten it, recoveryTokenCheck will see this again.
 	}
 	// OK, next token is no good to resume "in place", attempt some local repair.
-	for (int i = 0, length = RECOVERY_TOKENS.length; i < length; i++) {
-		if (automatonWillShift(RECOVERY_TOKENS[i], automatonState)) {
-			this.currentToken = RECOVERY_TOKENS[i];
+	for (int token : RECOVERY_TOKENS) {
+		if (automatonWillShift(token, automatonState)) {
+			this.currentToken = token;
 			return RESUME;
 		}
 	}

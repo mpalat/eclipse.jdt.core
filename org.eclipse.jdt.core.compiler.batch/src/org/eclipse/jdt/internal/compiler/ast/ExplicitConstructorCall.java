@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2019 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -80,6 +80,8 @@ public class ExplicitConstructorCall extends Statement implements Invocation {
 	// TODO Remove once DOMParser is activated
 	public int typeArgumentsSourceStart;
 
+	public boolean firstStatement = true; // Allow Statements before super
+
 	public ExplicitConstructorCall(int accessMode) {
 		this.accessMode = accessMode;
 	}
@@ -107,8 +109,7 @@ public class ExplicitConstructorCall extends Statement implements Invocation {
 							.analyseCode(currentScope, flowContext, flowInfo)
 							.unconditionalInits();
 					if (analyseResources) {
-						// if argument is an AutoCloseable insert info that it *may* be closed (by the target constructor, i.e.)
-						flowInfo = FakedTrackingVariable.markPassedToOutside(currentScope, this.arguments[i], flowInfo, flowContext, false);
+						flowInfo = handleResourcePassedToInvocation(currentScope, this.binding, this.arguments[i], i, flowContext, flowInfo);
 					}
 					this.arguments[i].checkNPEbyUnboxing(currentScope, flowContext, flowInfo);
 				}
@@ -270,7 +271,7 @@ public class ExplicitConstructorCall extends Statement implements Invocation {
 	}
 
 	@Override
-	public StringBuffer printStatement(int indent, StringBuffer output) {
+	public StringBuilder printStatement(int indent, StringBuilder output) {
 		printIndent(indent, output);
 		if (this.qualification != null) this.qualification.printExpression(0, output).append('.');
 		if (this.typeArguments != null) {
@@ -315,20 +316,22 @@ public class ExplicitConstructorCall extends Statement implements Invocation {
 			if (methodDeclaration == null
 					|| !methodDeclaration.isConstructor()
 					|| ((ConstructorDeclaration) methodDeclaration).constructorCall != this) {
-				if (!(methodDeclaration instanceof CompactConstructorDeclaration)) // already flagged for CCD
+				if (!(methodDeclaration instanceof CompactConstructorDeclaration)) {// already flagged for CCD
+					if (!this.inPreConstructorContext)
 						scope.problemReporter().invalidExplicitConstructorCall(this);
+				}
 				// fault-tolerance
 				if (this.qualification != null) {
 					this.qualification.resolveType(scope);
 				}
 				if (this.typeArguments != null) {
-					for (int i = 0, max = this.typeArguments.length; i < max; i++) {
-						this.typeArguments[i].resolveType(scope, true /* check bounds*/);
+					for (TypeReference typeArgument : this.typeArguments) {
+						typeArgument.resolveType(scope, true /* check bounds*/);
 					}
 				}
 				if (this.arguments != null) {
-					for (int i = 0, max = this.arguments.length; i < max; i++) {
-						this.arguments[i].resolveType(scope);
+					for (Expression argument : this.arguments) {
+						argument.resolveType(scope);
 					}
 				}
 				return;
@@ -345,7 +348,10 @@ public class ExplicitConstructorCall extends Statement implements Invocation {
 			}
 			if (receiverType != null) {
 				// prevent (explicit) super constructor invocation from within enum
-				if (this.accessMode == ExplicitConstructorCall.Super && receiverType.erasure().id == TypeIds.T_JavaLangEnum) {
+				MethodBinding mBinding = methodScope.referenceMethod().binding;
+ 				if (this.accessMode == ExplicitConstructorCall.Super &&
+ 						(mBinding != null && (mBinding.tagBits & TagBits.HasMissingType) == 0)
+						&& receiverType.erasure().id == TypeIds.T_JavaLangEnum) {
 					scope.problemReporter().cannotInvokeSuperConstructorInEnum(this, methodScope.referenceMethod().binding);
 				}
 				// qualification should be from the type of the enclosingType
@@ -384,8 +390,8 @@ public class ExplicitConstructorCall extends Statement implements Invocation {
 				}
 				if (argHasError) {
 					if (this.arguments != null) { // still attempt to resolve arguments
-						for (int i = 0, max = this.arguments.length; i < max; i++) {
-							this.arguments[i].resolveType(scope);
+						for (Expression argument : this.arguments) {
+							argument.resolveType(scope);
 						}
 					}
 					return;
@@ -515,13 +521,13 @@ public class ExplicitConstructorCall extends Statement implements Invocation {
 				this.qualification.traverse(visitor, scope);
 			}
 			if (this.typeArguments != null) {
-				for (int i = 0, typeArgumentsLength = this.typeArguments.length; i < typeArgumentsLength; i++) {
-					this.typeArguments[i].traverse(visitor, scope);
+				for (TypeReference typeArgument : this.typeArguments) {
+					typeArgument.traverse(visitor, scope);
 				}
 			}
 			if (this.arguments != null) {
-				for (int i = 0, argumentLength = this.arguments.length; i < argumentLength; i++)
-					this.arguments[i].traverse(visitor, scope);
+				for (Expression argument : this.arguments)
+					argument.traverse(visitor, scope);
 			}
 		}
 		visitor.endVisit(this, scope);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2023 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -33,8 +33,8 @@
 package org.eclipse.jdt.internal.compiler.lookup;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +66,7 @@ public class ClassScope extends Scope {
 	public TypeDeclaration referenceContext;
 	public TypeReference superTypeReference;
 	java.util.ArrayList<TypeReference> deferredBoundChecks;
+	public boolean resolvingPolyExpressionArguments = false;
 
 	public ClassScope(Scope parent, TypeDeclaration context) {
 		super(Scope.CLASS_SCOPE, parent);
@@ -81,8 +82,8 @@ public class ClassScope extends Scope {
 		if ((inheritedBits & TypeIds.BitWrapperCloseable) != 0) {
 			AbstractMethodDeclaration[] methods = this.referenceContext.methods;
 			if (methods != null) {
-				for (int i=0; i<methods.length; i++) {
-					if (CharOperation.equals(TypeConstants.CLOSE, methods[i].selector) && methods[i].arguments == null) {
+				for (AbstractMethodDeclaration method : methods) {
+					if (CharOperation.equals(TypeConstants.CLOSE, method.selector) && method.arguments == null) {
 						inheritedBits &= TypeIds.InheritableBits;
 						break;
 					}
@@ -303,8 +304,8 @@ public class ClassScope extends Scope {
 			 ((MemberTypeBinding) sourceType).checkSyntheticArgsAndFields();
 
 		ReferenceBinding[] memberTypes = sourceType.memberTypes;
-		for (int i = 0, length = memberTypes.length; i < length; i++)
-			 ((SourceTypeBinding) memberTypes[i]).scope.buildFieldsAndMethods();
+		for (ReferenceBinding memberType : memberTypes)
+			((SourceTypeBinding) memberType).scope.buildFieldsAndMethods();
 	}
 
 	private LocalTypeBinding buildLocalType(SourceTypeBinding enclosingType, PackageBinding packageBinding) {
@@ -373,6 +374,7 @@ public class ClassScope extends Scope {
 			checkParameterizedTypeBounds();
 			checkParameterizedSuperTypeCollisions();
 		}
+		this.referenceContext.updateSupertypesWithAnnotations(Collections.emptyMap());
 		buildFieldsAndMethods();
 		localType.faultInTypesForFieldsAndMethods();
 
@@ -408,6 +410,8 @@ public class ClassScope extends Scope {
 				ReferenceBinding type = sourceType;
 				// check that the member does not conflict with an enclosing type
 				do {
+					if (this.referenceContext.isImplicitType())
+						break;
 					if (CharOperation.equals(type.sourceName, memberContext.name)) {
 						problemReporter().typeCollidesWithEnclosingType(memberContext);
 						continue nextMember;
@@ -1028,8 +1032,7 @@ public class ClassScope extends Scope {
 			TypeReference[] boundRefs = typeParameter.bounds;
 			if (boundRefs != null) {
 				boolean checkSuperclass = TypeBinding.equalsEquals(typeVariable.firstBound, typeVariable.superclass);
-				for (int j = 0, boundLength = boundRefs.length; j < boundLength; j++) {
-					TypeReference typeRef = boundRefs[j];
+				for (TypeReference typeRef : boundRefs) {
 					TypeBinding superType = typeRef.resolvedType;
 					if (superType == null || !superType.isValidBinding()) continue;
 
@@ -1047,8 +1050,8 @@ public class ClassScope extends Scope {
 
 		ReferenceBinding[] memberTypes = this.referenceContext.binding.memberTypes;
 		if (memberTypes != null && memberTypes != Binding.NO_MEMBER_TYPES)
-			for (int i = 0, size = memberTypes.length; i < size; i++)
-				 ((SourceTypeBinding) memberTypes[i]).scope.checkParameterizedSuperTypeCollisions();
+			for (ReferenceBinding memberType : memberTypes)
+				((SourceTypeBinding) memberType).scope.checkParameterizedSuperTypeCollisions();
 	}
 
 	private void checkForInheritedMemberTypes(SourceTypeBinding sourceType) {
@@ -1128,16 +1131,16 @@ public class ClassScope extends Scope {
 
 		ReferenceBinding[] memberTypes = this.referenceContext.binding.memberTypes;
 		if (memberTypes != null && memberTypes != Binding.NO_MEMBER_TYPES)
-			for (int i = 0, size = memberTypes.length; i < size; i++)
-				 ((SourceTypeBinding) memberTypes[i]).scope.checkParameterizedTypeBounds();
+			for (ReferenceBinding memberType : memberTypes)
+				((SourceTypeBinding) memberType).scope.checkParameterizedTypeBounds();
 	}
 
 	private void connectMemberTypes() {
 		SourceTypeBinding sourceType = this.referenceContext.binding;
 		ReferenceBinding[] memberTypes = sourceType.memberTypes;
 		if (memberTypes != null && memberTypes != Binding.NO_MEMBER_TYPES) {
-			for (int i = 0, size = memberTypes.length; i < size; i++)
-				 ((SourceTypeBinding) memberTypes[i]).scope.connectTypeHierarchy();
+			for (ReferenceBinding memberType : memberTypes)
+				((SourceTypeBinding) memberType).scope.connectTypeHierarchy();
 		}
 	}
 	/*
@@ -1199,9 +1202,6 @@ public class ClassScope extends Scope {
 				// only want to reach here when no errors are reported
 				sourceType.setSuperClass(superclass);
 				sourceType.typeBits |= (superclass.typeBits & TypeIds.InheritableBits);
-				// further analysis against white lists for the unlikely case we are compiling java.io.*:
-				if ((sourceType.typeBits & (TypeIds.BitAutoCloseable|TypeIds.BitCloseable)) != 0)
-					sourceType.typeBits |= sourceType.applyCloseableClassWhitelists(this.compilerOptions());
 				return true;
 			}
 		}
@@ -1264,7 +1264,7 @@ public class ClassScope extends Scope {
 			// bug xxxx flag Error and return;
 		}
 		if (permSubTypes.size() == 0) {
-			if (!sourceType.isLocalType()) // error flagged already
+			if (!sourceType.isLocalType() && !sourceType.isRecord() && !sourceType.isEnum()) // error flagged already
 				problemReporter().sealedSealedTypeMissingPermits(sourceType, this.referenceContext);
 			return;
 		}
@@ -1276,7 +1276,7 @@ public class ClassScope extends Scope {
 	void connectImplicitPermittedTypes() {
 		TypeDeclaration typeDecl = this.referenceContext;
 		SourceTypeBinding sourceType = typeDecl.binding;
-		if (sourceType.id == TypeIds.T_JavaLangObject || sourceType.isEnum() || sourceType.isRecord()) // already handled
+		if (sourceType.id == TypeIds.T_JavaLangObject) // already handled
 			return;
 		if (sourceType.isSealed() && (typeDecl.permittedTypes == null ||
 				typeDecl.permittedTypes.length == 0)) {
@@ -1284,8 +1284,8 @@ public class ClassScope extends Scope {
 		}
 		ReferenceBinding[] memberTypes = sourceType.memberTypes;
 		if (memberTypes != null && memberTypes != Binding.NO_MEMBER_TYPES) {
-			for (int i = 0, size = memberTypes.length; i < size; i++)
-				 ((SourceTypeBinding) memberTypes[i]).scope.connectImplicitPermittedTypes();
+			for (ReferenceBinding memberType : memberTypes)
+				((SourceTypeBinding) memberType).scope.connectImplicitPermittedTypes();
 		}
 	}
 	/**
@@ -1348,8 +1348,8 @@ public class ClassScope extends Scope {
 		}
 		ReferenceBinding[] memberTypes = sourceType.memberTypes;
 		if (memberTypes != null && memberTypes != Binding.NO_MEMBER_TYPES) {
-			for (int j = 0, size = memberTypes.length; j < size; j++)
-				 ((SourceTypeBinding) memberTypes[j]).scope.connectPermittedTypes();
+			for (ReferenceBinding memberType : memberTypes)
+				((SourceTypeBinding) memberType).scope.connectPermittedTypes();
 		}
 	}
 
@@ -1455,9 +1455,6 @@ public class ClassScope extends Scope {
 			}
 			// only want to reach here when no errors are reported
 			sourceType.typeBits |= (superInterface.typeBits & TypeIds.InheritableBits);
-			// further analysis against white lists for the unlikely case we are compiling java.util.stream.Stream:
-			if ((sourceType.typeBits & (TypeIds.BitAutoCloseable|TypeIds.BitCloseable)) != 0)
-				sourceType.typeBits |= sourceType.applyCloseableInterfaceWhitelists();
 			interfaceBindings[count++] = superInterface;
 		}
 		// hold onto all correctly resolved superinterfaces
@@ -1476,6 +1473,9 @@ public class ClassScope extends Scope {
 			environment().typesBeingConnected.add(sourceType);
 			boolean noProblems = connectSuperclass();
 			noProblems &= connectSuperInterfaces();
+			if ((sourceType.typeBits & (TypeIds.BitAutoCloseable|TypeIds.BitCloseable)) != 0) {
+				sourceType.typeBits |= sourceType.applyCloseableWhitelists(compilerOptions());
+			}
 			environment().typesBeingConnected.remove(sourceType);
 			sourceType.tagBits |= TagBits.EndHierarchyCheck;
 //			connectPermittedTypes();
@@ -1600,8 +1600,7 @@ public class ClassScope extends Scope {
 
 			ReferenceBinding[] itsInterfaces = superType.superInterfaces();
 			if (itsInterfaces != null && itsInterfaces != Binding.NO_SUPERINTERFACES) {
-				for (int i = 0, length = itsInterfaces.length; i < length; i++) {
-					ReferenceBinding anInterface = itsInterfaces[i];
+				for (ReferenceBinding anInterface : itsInterfaces) {
 					if (TypeBinding.equalsEquals(sourceType, anInterface)) {
 						problemReporter().hierarchyCircularity(sourceType, superType, reference);
 						sourceType.tagBits |= TagBits.HierarchyHasProblems;
@@ -1639,8 +1638,7 @@ public class ClassScope extends Scope {
 				// https://bugs.eclipse.org/bugs/show_bug.cgi?id=319885 Don't cry foul prematurely.
 				// Check the edges traversed to see if there really is a cycle.
 				char [] referredName = ref.getLastToken();
-				for (Iterator iter = environment().typesBeingConnected.iterator(); iter.hasNext();) {
-					SourceTypeBinding type = (SourceTypeBinding) iter.next();
+				for (SourceTypeBinding type : environment().typesBeingConnected) {
 					if (CharOperation.equals(referredName, type.sourceName())) {
 						problemReporter().hierarchyCircularity(sourceType, superType, reference);
 						sourceType.tagBits |= TagBits.HierarchyHasProblems;
@@ -1730,6 +1728,24 @@ public class ClassScope extends Scope {
 	*/
 	public TypeDeclaration referenceType() {
 		return this.referenceContext;
+	}
+
+	public final MethodBinding enclosingMethod() {
+		Scope scope = this;
+		while ((scope = scope.parent) != null) {
+			if (scope instanceof MethodScope) {
+				MethodScope methodScope = (MethodScope) scope;
+				/* 4.7.7 The EnclosingMethod Attribute: ... In particular, method_index must be zero if the current class
+				 * was immediately enclosed in source code by an instance initializer, static initializer, instance variable initializer, or
+				 * class variable initializer....
+				 */
+				if (methodScope.referenceContext instanceof TypeDeclaration)
+					return null;
+				if (methodScope.referenceContext instanceof AbstractMethodDeclaration)
+					return ((MethodScope) scope).referenceMethodBinding();
+			}
+		}
+		return null; // may answer null if no method around
 	}
 
 	@Override

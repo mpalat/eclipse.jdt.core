@@ -30,7 +30,7 @@ public class SourceRangeVerifier extends ASTVisitor {
 	public static boolean DEBUG = false;
 	public static boolean DEBUG_THROW = false;
 
-	private StringBuffer bugs;
+	private StringBuilder bugs;
 
 	/**
 	 * Verifies proper node nesting as specified in {@link ASTParser#setKind(int)}:
@@ -43,7 +43,7 @@ public class SourceRangeVerifier extends ASTVisitor {
 	 * @return <code>null</code> if everything is OK; a list of errors otherwise
 	 */
 	public String process(ASTNode node) {
-		StringBuffer buffer = new StringBuffer();
+		StringBuilder buffer = new StringBuilder();
 		this.bugs = buffer;
 		node.accept(this);
 		this.bugs = null;
@@ -57,8 +57,11 @@ public class SourceRangeVerifier extends ASTVisitor {
 		ASTNode previous = null;
 
 		List properties = node.structuralPropertiesForType();
-		for (int i = 0; i < properties.size(); i++) {
-			StructuralPropertyDescriptor property = (StructuralPropertyDescriptor) properties.get(i);
+		if (properties == null) { // happens for some nodes that aren't usually available at AST level
+			return false;
+		}
+		for (Object p : properties) {
+			StructuralPropertyDescriptor property = (StructuralPropertyDescriptor) p;
 			if (property.isChildProperty()) {
 				ASTNode child = (ASTNode) node.getStructuralProperty(property);
 				if (child != null) {
@@ -71,8 +74,8 @@ public class SourceRangeVerifier extends ASTVisitor {
 				}
 			} else if (property.isChildListProperty()) {
 				List children = (List) node.getStructuralProperty(property);
-				for (int j= 0; j < children.size(); j++) {
-					ASTNode child = (ASTNode) children.get(j);
+				for (Object c : children) {
+					ASTNode child = (ASTNode) c;
 					boolean ok = checkChild(node, previous, child);
 					if (ok) {
 						previous = child;

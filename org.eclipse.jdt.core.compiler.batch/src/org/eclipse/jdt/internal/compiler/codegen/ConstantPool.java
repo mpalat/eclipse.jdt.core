@@ -326,6 +326,10 @@ public class ConstantPool implements ClassFileConstants, TypeIds {
 			"(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/Class;Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;".toCharArray(); //$NON-NLS-1$
 	public static final char[] JAVA_LANG_ENUMDESC_OF_SIGNATURE = "(Ljava/lang/constant/ClassDesc;Ljava/lang/String;)Ljava/lang/Enum$EnumDesc;".toCharArray(); //$NON-NLS-1$
 	public static final char[] JAVA_LANG_CLASSDESC_OF_SIGNATURE = "(Ljava/lang/String;)Ljava/lang/constant/ClassDesc;".toCharArray(); //$NON-NLS-1$
+	public static final char[] JAVA_LANG_RUNTIME_STRING_TEMPLATE_SIGNATURE =
+			"(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;[Ljava/lang/String;)Ljava/lang/invoke/CallSite;".toCharArray(); //$NON-NLS-1$
+
+	public static final char[] PROCESS = "process".toCharArray(); //$NON-NLS-1$
 
 	/**
 	 * ConstantPool constructor comment.
@@ -423,8 +427,7 @@ public class ConstantPool implements ClassFileConstants, TypeIds {
 			}
 			this.currentOffset += 2;
 			length = 0;
-			for (int i = 0; i < utf8Constant.length; i++) {
-				char current = utf8Constant[i];
+			for (char current : utf8Constant) {
 				if ((current >= 0x0001) && (current <= 0x007F)) {
 					// we only need one byte: ASCII table
 					writeU1(current);
@@ -1060,8 +1063,7 @@ public class ConstantPool implements ClassFileConstants, TypeIds {
 				}
 				this.currentOffset += 2;
 				length = 0;
-				for (int i = 0; i < stringCharArray.length; i++) {
-					char current = stringCharArray[i];
+				for (char current : stringCharArray) {
 					if ((current >= 0x0001) && (current <= 0x007F)) {
 						// we only need one byte: ASCII table
 						length++;

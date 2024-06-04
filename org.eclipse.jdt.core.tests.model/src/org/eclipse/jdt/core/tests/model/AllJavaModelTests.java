@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 
 import org.eclipse.jdt.core.tests.compiler.CharDeduplicationTest;
 import org.eclipse.jdt.core.tests.compiler.DeduplicationUtilTest;
+import org.eclipse.jdt.core.tests.compiler.IrritantSetTest;
 import org.eclipse.jdt.core.tests.compiler.map.CharArrayMapperTest;
 import org.eclipse.jdt.core.tests.junit.extension.TestCase;
 
@@ -64,6 +65,7 @@ private static Class[] getAllTestClasses() {
 
 		// Attached javadoc tests
 		AttachedJavadocTests.class,
+		AttachedJavadocTests21.class,
 
 		// Java search tests
 		RunJavaSearchTests.class,
@@ -112,6 +114,7 @@ private static Class[] getAllTestClasses() {
 		ResolveTests9.class,
 		ResolveTests10.class,
 		ResolveTests12To15.class,
+		ResolveTests21.class,
 		SelectionJavadocModelTests.class,
 
 		// Support for completion tests
@@ -239,6 +242,8 @@ private static Class[] getAllTestClasses() {
 		DeduplicationUtilTest.class,
 
 		RecordsElementTests.class,
+
+		IrritantSetTest.class,
 	};
 
 	Class[] deprecatedClasses = getDeprecatedJDOMTestClasses();

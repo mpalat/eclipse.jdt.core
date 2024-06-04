@@ -42,6 +42,7 @@ import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.compiler.lookup.TypeConstants;
 import org.eclipse.jdt.internal.core.JavaModelManager.PerProjectInfo;
+import org.eclipse.jdt.internal.core.util.DeduplicationUtil;
 import org.eclipse.jdt.internal.core.util.HashtableOfArrayToObject;
 import org.eclipse.jdt.internal.core.util.Util;
 
@@ -73,7 +74,7 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 
 	/**
 	 * Reflects the extra attributes of the classpath entry declaring this root.
-	 * Caution, this field is used in hashCode() & equals() to avoid overzealous sharing.
+	 * Caution, this field is used in {@link #hashCode()} and {@link #equals(Object)} to avoid overzealous sharing.
 	 * Can be null, if lookup via the corresponding classpath entry failed.
 	 */
 	final protected IClasspathAttribute[] extraAttributes;
@@ -120,7 +121,7 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 			// always create the default package
 			rawPackageInfo.put(CharOperation.NO_STRINGS, new ArrayList[] { EMPTY_LIST, EMPTY_LIST });
 
-			Object file = JavaModel.getTarget(getPath(), true);
+			Object file = JavaModel.getTarget(this, true);
 			long classLevel = Util.getJdkLevel(file);
 			String projectCompliance = this.getJavaProject().getOption(JavaCore.COMPILER_COMPLIANCE, true);
 			long projectLevel = CompilerOptions.versionToJdkLevel(projectCompliance);
@@ -150,7 +151,7 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 				int length = version.length();
 				for (Enumeration<? extends ZipEntry> e= jar.entries(); e.hasMoreElements();) {
 					ZipEntry member= e.nextElement();
-					String name = member.getName();
+					String name = Util.getEntryName(jar.getName(), member);
 					if (this.multiVersion && name.length() > (length + 2) && name.startsWith(version)) {
 						int end = name.indexOf('/', length);
 						if (end >= name.length()) continue;
@@ -170,8 +171,8 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 			// and cache the entry names in the rawPackageInfo table
 			children = new IJavaElement[rawPackageInfo.size()];
 			int index = 0;
-			for (int i = 0, length = rawPackageInfo.keyTable.length; i < length; i++) {
-				String[] pkgName = (String[]) rawPackageInfo.keyTable[i];
+			for (Object[] o : rawPackageInfo.keyTable) {
+				String[] pkgName = (String[]) o;
 				if (pkgName == null) continue;
 				children[index++] = getPackageFragment(pkgName);
 			}
@@ -191,14 +192,15 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 		((JarPackageFragmentRootInfo) info).overriddenClasses = overridden;
 		return true;
 	}
+
 	protected IJavaElement[] createChildren(final HashtableOfArrayToObject rawPackageInfo) {
 		IJavaElement[] children;
 		// loop through all of referenced packages, creating package fragments if necessary
 		// and cache the entry names in the rawPackageInfo table
 		children = new IJavaElement[rawPackageInfo.size()];
 		int index = 0;
-		for (int i = 0, length = rawPackageInfo.keyTable.length; i < length; i++) {
-			String[] pkgName = (String[]) rawPackageInfo.keyTable[i];
+		for (Object[] o : rawPackageInfo.keyTable) {
+			String[] pkgName = (String[]) o;
 			if (pkgName == null) continue;
 			children[index++] = getPackageFragment(pkgName);
 		}
@@ -208,7 +210,7 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 	 * Returns a new element info for this element.
 	 */
 	@Override
-	protected Object createElementInfo() {
+	protected JarPackageFragmentRootInfo createElementInfo() {
 		return new JarPackageFragmentRootInfo();
 	}
 	/**
@@ -229,13 +231,17 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 	public boolean equals(Object o) {
 		if (this == o)
 			return true;
-		if (o instanceof JarPackageFragmentRoot) {
-			JarPackageFragmentRoot other= (JarPackageFragmentRoot) o;
-			return this.jarPath.equals(other.jarPath)
-					&& Arrays.equals(this.extraAttributes, other.extraAttributes);
+		if (o instanceof JarPackageFragmentRoot other) {
+			return this.jarPath.equals(other.jarPath) && Arrays.equals(this.extraAttributes, other.extraAttributes);
 		}
 		return false;
 	}
+
+	@Override
+	protected int calculateHashCode() {
+		return this.jarPath.hashCode() + Arrays.hashCode(this.extraAttributes);
+	}
+
 	@Override
 	public String getElementName() {
 		return this.jarPath.lastSegment();
@@ -339,10 +345,6 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 			return super.getUnderlyingResource();
 		}
 	}
-	@Override
-	public int hashCode() {
-		return this.jarPath.hashCode() + Arrays.hashCode(this.extraAttributes);
-	}
 	protected void initRawPackageInfo(HashtableOfArrayToObject rawPackageInfo, String entryName, boolean isDirectory, String compliance) {
 		int lastSeparator;
 		if (isDirectory) {
@@ -363,12 +365,11 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 			if (existing != null) break;
 			existingLength--;
 		}
-		JavaModelManager manager = JavaModelManager.getJavaModelManager();
 		for (int i = existingLength; i < length; i++) {
 			// sourceLevel must be null because we know nothing about it based on a jar file
 			if (Util.isValidFolderNameForPackage(pkgName[i], null, compliance)) {
 				System.arraycopy(existing, 0, existing = new String[i+1], 0, i);
-				existing[i] = manager.intern(pkgName[i]);
+				existing[i] = DeduplicationUtil.intern(pkgName[i]);
 				rawPackageInfo.put(existing, new ArrayList[] { EMPTY_LIST, EMPTY_LIST });
 			} else {
 				// non-Java resource folder
@@ -432,7 +433,7 @@ public class JarPackageFragmentRoot extends PackageFragmentRoot {
 	}
 
 	@Override
-	protected void toStringAncestors(StringBuffer buffer) {
+	protected void toStringAncestors(StringBuilder buffer) {
 		if (isExternal())
 			// don't show project as it is irrelevant for external jar files.
 			// also see https://bugs.eclipse.org/bugs/show_bug.cgi?id=146615

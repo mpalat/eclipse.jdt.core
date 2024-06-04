@@ -17,6 +17,7 @@
 
 package org.eclipse.jdt.core.dom;
 
+import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.compiler.CharOperation;
@@ -157,7 +158,7 @@ class TypeBinding implements ITypeBinding {
 		} else if (this.binding.isTypeVariable()) {
 			TypeVariableBinding typeVariableBinding = (TypeVariableBinding) this.binding;
 			org.eclipse.jdt.internal.compiler.lookup.Binding declaring = typeVariableBinding.declaringElement;
-			StringBuffer binaryName = new StringBuffer();
+			StringBuilder binaryName = new StringBuilder();
 			switch(declaring.kind()) {
 				case org.eclipse.jdt.internal.compiler.lookup.Binding.METHOD :
 					MethodBinding methodBinding = (MethodBinding) declaring;
@@ -629,13 +630,13 @@ class TypeBinding implements ITypeBinding {
 
 	@Override
 	public String getName() {
-		StringBuffer buffer;
+		StringBuilder buffer;
 		switch (this.binding.kind()) {
 
 			case Binding.WILDCARD_TYPE :
 			case Binding.INTERSECTION_TYPE:
 				WildcardBinding wildcardBinding = (WildcardBinding) this.binding;
-				buffer = new StringBuffer();
+				buffer = new StringBuilder();
 				buffer.append(TypeConstants.WILDCARD_NAME);
 				if (wildcardBinding.bound != null) {
 					switch(wildcardBinding.boundKind) {
@@ -658,7 +659,7 @@ class TypeBinding implements ITypeBinding {
 
 			case Binding.PARAMETERIZED_TYPE :
 				ParameterizedTypeBinding parameterizedTypeBinding = (ParameterizedTypeBinding) this.binding;
-				buffer = new StringBuffer();
+				buffer = new StringBuilder();
 				buffer.append(parameterizedTypeBinding.sourceName());
 				ITypeBinding[] tArguments = getTypeArguments();
 				final int typeArgumentsLength = tArguments.length;
@@ -688,7 +689,7 @@ class TypeBinding implements ITypeBinding {
 					brackets[i] = ']';
 					brackets[i - 1] = '[';
 				}
-				buffer = new StringBuffer(elementType.getName());
+				buffer = new StringBuilder(elementType.getName());
 				buffer.append(brackets);
 				return String.valueOf(buffer);
 
@@ -728,13 +729,13 @@ class TypeBinding implements ITypeBinding {
 	 */
 	@Override
 	public String getQualifiedName() {
-		StringBuffer buffer;
+		StringBuilder buffer;
 		switch (this.binding.kind()) {
 
 			case Binding.WILDCARD_TYPE :
 			case Binding.INTERSECTION_TYPE:
 				WildcardBinding wildcardBinding = (WildcardBinding) this.binding;
-				buffer = new StringBuffer();
+				buffer = new StringBuilder();
 				buffer.append(TypeConstants.WILDCARD_NAME);
 				final ITypeBinding bound = getBound();
 				if (bound != null) {
@@ -763,7 +764,7 @@ class TypeBinding implements ITypeBinding {
 					brackets[i] = ']';
 					brackets[i - 1] = '[';
 				}
-				buffer = new StringBuffer(elementType.getQualifiedName());
+				buffer = new StringBuilder(elementType.getQualifiedName());
 				buffer.append(brackets);
 				return String.valueOf(buffer);
 
@@ -778,7 +779,7 @@ class TypeBinding implements ITypeBinding {
 				if (this.binding.isLocalType()) {
 					return NO_NAME;
 				}
-				buffer = new StringBuffer();
+				buffer = new StringBuilder();
 				if (isMember()) {
 					buffer
 						.append(getDeclaringClass().getQualifiedName())
@@ -822,7 +823,7 @@ class TypeBinding implements ITypeBinding {
 					return new String(baseTypeBinding.simpleName);
 				}
 				if (isMember()) {
-					buffer = new StringBuffer();
+					buffer = new StringBuilder();
 					buffer
 						.append(getDeclaringClass().getQualifiedName())
 						.append('.');
@@ -830,7 +831,7 @@ class TypeBinding implements ITypeBinding {
 					return String.valueOf(buffer);
 				}
 				PackageBinding packageBinding = this.binding.getPackage();
-				buffer = new StringBuffer();
+				buffer = new StringBuilder();
 				if (packageBinding != null && packageBinding.compoundName != CharOperation.NO_CHAR_CHAR) {
 					buffer.append(CharOperation.concatWith(packageBinding.compoundName, '.')).append('.');
 				}
@@ -855,6 +856,8 @@ class TypeBinding implements ITypeBinding {
 		ReferenceBinding superclass = null;
 		try {
 			superclass = ((ReferenceBinding)this.binding).superclass();
+		} catch (OperationCanceledException e) {
+			throw e; // https://github.com/eclipse-jdt/eclipse.jdt.core/issues/1925
 		} catch (RuntimeException e) {
 			/* in case a method cannot be resolvable due to missing jars on the classpath
 			 * see https://bugs.eclipse.org/bugs/show_bug.cgi?id=57871

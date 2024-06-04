@@ -55,7 +55,6 @@ import org.eclipse.jdt.internal.compiler.util.SuffixConstants;
 import org.eclipse.jdt.internal.core.JavaModelManager;
 import org.eclipse.jdt.internal.core.util.Util;
 
-@SuppressWarnings("rawtypes")
 public class ClasspathJar extends ClasspathLocation {
 final boolean isOnModulePath;
 
@@ -110,8 +109,8 @@ protected SimpleSet findPackageSet() {
 }
 protected String readJarContent(final SimpleSet packageSet) {
 	String modInfo = null;
-	for (Enumeration e = this.zipFile.entries(); e.hasMoreElements(); ) {
-		String fileName = ((ZipEntry) e.nextElement()).getName();
+	for (Enumeration<? extends ZipEntry> e = this.zipFile.entries(); e.hasMoreElements(); ) {
+		String fileName = e.nextElement().getName();
 		if (fileName.startsWith("META-INF/")) //$NON-NLS-1$
 			continue;
 		if (modInfo == null) {
@@ -128,9 +127,7 @@ protected String readJarContent(final SimpleSet packageSet) {
 }
 IModule initializeModule() {
 	IModule mod = null;
-	ZipFile file = null;
-	try {
-		file = new ZipFile(this.zipFilename);
+	try (ZipFile file = new ZipFile(this.zipFilename)) {
 		String releasePath = "META-INF/versions/" + this.compliance + '/' + IModule.MODULE_INFO_CLASS; //$NON-NLS-1$
 		ClassFileReader classfile = null;
 		try {
@@ -149,13 +146,6 @@ IModule initializeModule() {
 		}
 	} catch (ClassFormatException | IOException e) {
 		// do nothing
-	} finally {
-		try {
-			if (file != null)
-				file.close();
-		} catch (IOException e) {
-			// do nothing
-		}
 	}
 	return mod;
 }
@@ -418,8 +408,8 @@ public char[][] listPackages() {
 		return null;
 	char[][] result = new char[this.knownPackageNames.elementSize][];
 	int count = 0;
-	for (int i=0; i<this.knownPackageNames.values.length; i++) {
-		String string = (String) this.knownPackageNames.values[i];
+	for (Object value : this.knownPackageNames.values) {
+		String string = (String) value;
 		if (string != null &&!string.isEmpty()) {
 			result[count++] = string.replace('/', '.').toCharArray();
 		}

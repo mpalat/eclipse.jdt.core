@@ -151,7 +151,7 @@ public class ModelTests extends TestCase {
 		File targetFolder = TestUtils.concatPath(BatchTestUtils.getSrcFolderName(), "targets", "model");
 		BatchTestUtils.copyResources("targets/model", targetFolder);
 
-		List<String> options = new ArrayList<String>();
+		List<String> options = new ArrayList<>();
 		options.add("-A" + processorClass);
 		BatchTestUtils.compileTree(compiler, options, targetFolder);
 
@@ -166,9 +166,9 @@ public class ModelTests extends TestCase {
 		File targetFolder = TestUtils.concatPath(BatchTestUtils.getSrcFolderName(), "targets", "jsr199");
 		BatchTestUtils.copyResources("targets/jsr199", targetFolder);
 
-		List<String> options = new ArrayList<String>();
+		List<String> options = new ArrayList<>();
 		options.add("-A" + processorClass);
-		final StringBuffer reported = new StringBuffer();
+		final StringBuilder reported = new StringBuilder();
 		BatchTestUtils.compileTree(compiler, options, targetFolder, new DiagnosticListener () {
 			@Override
 			public void report(Diagnostic diag) {

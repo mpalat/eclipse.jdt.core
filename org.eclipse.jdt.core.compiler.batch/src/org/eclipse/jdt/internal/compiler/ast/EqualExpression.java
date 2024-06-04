@@ -61,11 +61,11 @@ public class EqualExpression extends BinaryExpression {
 				if ((local.type.tagBits & TagBits.IsBaseType) == 0) {
 					checkVariableComparison(scope, flowContext, flowInfo, initsWhenTrue, initsWhenFalse, local, rightStatus, this.left);
 				}
-			} else if (this.left instanceof Reference
+			} else if (this.left instanceof Reference reference
 							&& ((contextualCheckEquality ? rightStatus == FlowInfo.NON_NULL : rightStatus == FlowInfo.NULL))
-							&& scope.compilerOptions().enableSyntacticNullAnalysisForFields)
+							&& shouldPerformSyntacticAnalsysisFor(scope, reference))
 			{
-				FieldBinding field = ((Reference)this.left).lastFieldBinding();
+				FieldBinding field = reference.lastFieldBinding();
 				if (field != null && (field.type.tagBits & TagBits.IsBaseType) == 0) {
 					flowContext.recordNullCheckedFieldReference((Reference) this.left, 1);
 				}
@@ -77,11 +77,11 @@ public class EqualExpression extends BinaryExpression {
 				if ((local.type.tagBits & TagBits.IsBaseType) == 0) {
 					checkVariableComparison(scope, flowContext, flowInfo, initsWhenTrue, initsWhenFalse, local, leftStatus, this.right);
 				}
-			} else if (this.right instanceof Reference
+			} else if (this.right instanceof Reference reference
 							&& ((contextualCheckEquality ? leftStatus == FlowInfo.NON_NULL : leftStatus == FlowInfo.NULL))
-							&& scope.compilerOptions().enableSyntacticNullAnalysisForFields)
+							&& shouldPerformSyntacticAnalsysisFor(scope, reference))
 			{
-				FieldBinding field = ((Reference)this.right).lastFieldBinding();
+				FieldBinding field = reference.lastFieldBinding();
 				if (field != null && (field.type.tagBits & TagBits.IsBaseType) == 0) {
 					flowContext.recordNullCheckedFieldReference((Reference) this.right, 1);
 				}
@@ -97,6 +97,19 @@ public class EqualExpression extends BinaryExpression {
 				initsWhenFalse.setReachMode(FlowInfo.UNREACHABLE_BY_NULLANALYSIS);
 			}
 		}
+	}
+	boolean shouldPerformSyntacticAnalsysisFor(Scope scope, Reference reference) {
+		CompilerOptions compilerOptions = scope.compilerOptions();
+		if (compilerOptions.enableSyntacticNullAnalysisForFields)
+			return true;
+		if (compilerOptions.isAnnotationBasedResourceAnalysisEnabled && (reference.bits & Binding.FIELD) != 0) {
+			// annotation based resource leak analysis implicitly "borrows" from syntactic analysis for fields
+			// in order to understand the pattern "if (this.resource != null) this.resource.close();"
+			FieldBinding fieldBinding = reference.fieldBinding();
+			if (fieldBinding != null && fieldBinding.closeTracker != null)
+				return true;
+		}
+		return false;
 	}
 	public void syntacticFieldAnalysisForFalseBranch(FlowInfo flowInfo, FlowContext flowContext) {
 		// extracted slice of checkNullComparison concerning syntactic null analysis for fields:
@@ -353,7 +366,6 @@ public class EqualExpression extends BinaryExpression {
 					} else {
 						BranchLabel endLabel = new BranchLabel(codeStream);
 						codeStream.goto_(endLabel);
-						codeStream.decrStackSize(1);
 						// comparison is FALSE
 						falseLabel.place();
 						codeStream.iconst_1();
@@ -395,7 +407,6 @@ public class EqualExpression extends BinaryExpression {
 					} else {
 						BranchLabel endLabel = new BranchLabel(codeStream);
 						codeStream.goto_(endLabel);
-						codeStream.decrStackSize(1);
 						// comparison is FALSE
 						falseLabel.place();
 						codeStream.iconst_1();
@@ -433,7 +444,6 @@ public class EqualExpression extends BinaryExpression {
 				} else {
 					BranchLabel endLabel = new BranchLabel(codeStream);
 					codeStream.goto_(endLabel);
-					codeStream.decrStackSize(1);
 					// comparison is FALSE
 					falseLabel.place();
 					codeStream.iconst_0();
@@ -513,7 +523,6 @@ public class EqualExpression extends BinaryExpression {
 					} else {
 						BranchLabel endLabel = new BranchLabel(codeStream);
 						codeStream.goto_(endLabel);
-						codeStream.decrStackSize(1);
 						// comparison is FALSE
 						falseLabel.place();
 						codeStream.iconst_0();
@@ -543,7 +552,6 @@ public class EqualExpression extends BinaryExpression {
 					} else {
 						BranchLabel endLabel = new BranchLabel(codeStream);
 						codeStream.goto_(endLabel);
-						codeStream.decrStackSize(1);
 						// comparison is FALSE
 						falseLabel.place();
 						codeStream.iconst_0();
@@ -586,7 +594,6 @@ public class EqualExpression extends BinaryExpression {
 					} else {
 						BranchLabel endLabel = new BranchLabel(codeStream);
 						codeStream.goto_(endLabel);
-						codeStream.decrStackSize(1);
 						// comparison is FALSE
 						falseLabel.place();
 						codeStream.iconst_0();
@@ -616,7 +623,6 @@ public class EqualExpression extends BinaryExpression {
 				} else {
 					BranchLabel endLabel = new BranchLabel(codeStream);
 					codeStream.goto_(endLabel);
-					codeStream.decrStackSize(1);
 					// comparison is FALSE
 					falseLabel.place();
 					codeStream.iconst_0();
@@ -683,7 +689,6 @@ public class EqualExpression extends BinaryExpression {
 			} else {
 				BranchLabel endLabel = new BranchLabel(codeStream);
 				codeStream.goto_(endLabel);
-				codeStream.decrStackSize(1);
 				// comparison is FALSE
 				falseLabel.place();
 				codeStream.iconst_0();

@@ -9139,7 +9139,7 @@ public void testBug508834_comment0() {
 	}
 	public void testBug525580() {
 		Runner runner = new Runner();
-		runner.customOptions = new HashMap<String, String>();
+		runner.customOptions = new HashMap<>();
 		runner.customOptions.put(JavaCore.COMPILER_PB_DEPRECATION, JavaCore.IGNORE);
 		runner.testFiles =
 			new String[] {
@@ -9220,7 +9220,7 @@ public void testBug508834_comment0() {
 	}
 	public void testBug525580_comment28() {
 		Runner runner = new Runner();
-		runner.customOptions = new HashMap<String, String>();
+		runner.customOptions = new HashMap<>();
 		runner.customOptions.put(JavaCore.COMPILER_PB_DEPRECATION, JavaCore.IGNORE);
 		runner.testFiles =
 			new String[] {
@@ -10542,5 +10542,326 @@ public void testBug508834_comment0() {
 				}
 				"""
 			});
+	}
+	// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/1794
+	// Remove redundant type arguments in lambda expressions leads to type mismatch error
+	public void testGH1794() {
+		Map customOptions = getCompilerOptions();
+		customOptions.put(CompilerOptions.OPTION_ReportRedundantSpecificationOfTypeArguments, CompilerOptions.ERROR);
+		runNegativeTest(
+			false /*skipJavac */,
+			JavacTestOptions.Excuse.EclipseWarningConfiguredAsError,
+			new String[] {
+				"TypeArgumentsTest.java",
+				"""
+				import java.util.ArrayList;
+				import java.util.List;
+				import java.util.stream.Collectors;
+
+				public class TypeArgumentsTest {
+					public static void main(String[] args) {
+						List<String> strings = List.of("string1", "string2");
+						ArrayList<ArrayList<String>> collectedStrings = strings.stream()
+								.map(s -> new ArrayList<String>())
+								.collect(Collectors.toCollection(() -> new ArrayList<>(strings.size())));
+						System.out.println(collectedStrings);
+					}
+				}
+				"""
+			},
+			"",
+			null, true, customOptions);
+	}
+	// https://bugs.eclipse.org/bugs/show_bug.cgi?id=576002
+	// Mandatory Void Type gets eliminated
+	public void testBug576002() {
+		Map customOptions = getCompilerOptions();
+		customOptions.put(CompilerOptions.OPTION_ReportRedundantSpecificationOfTypeArguments, CompilerOptions.ERROR);
+		runNegativeTest(
+			false /*skipJavac */,
+			JavacTestOptions.Excuse.EclipseWarningConfiguredAsError,
+			new String[] {
+				"Test.java",
+				"""
+				import java.util.ArrayList;
+				import java.util.List;
+				import java.util.concurrent.FutureTask;
+				import java.util.stream.Collectors;
+
+				public class Test {
+					List<FutureTask<Void>> tasks = new ArrayList<>().stream().map(e -> new FutureTask<Void>(() -> {
+						return null;
+					})).collect(Collectors.toList());
+				}
+				"""
+			},
+			"",
+			null, true, customOptions);
+	}
+	// https://bugs.eclipse.org/bugs/show_bug.cgi?id=550864
+	// [1.8][inference] Removing "redundant" type argument results in compile error
+	public void testBug550864() {
+		Map customOptions = getCompilerOptions();
+		customOptions.put(CompilerOptions.OPTION_ReportRedundantSpecificationOfTypeArguments, CompilerOptions.ERROR);
+		runNegativeTest(
+			false /*skipJavac */,
+			JavacTestOptions.Excuse.EclipseWarningConfiguredAsError,
+			new String[] {
+				"TypeArgBug.java",
+				"""
+				import java.util.Comparator;
+				import java.util.List;
+
+				public class TypeArgBug {
+
+				  public static void main(String[] args) {
+
+				    // Allowed (with type specification in lambda)
+				    List<Order<Descriptor>> x = List.of(
+				      new Order<>(
+				        "best",
+				        Comparator.comparing((Item<Descriptor> item) -> ((Basket)item.getData()).getWeaveCount())
+				      )
+				    );
+
+				    // Allowed, but gives warning (redundant type argument for Order<Descriptor>)
+				    List<Order<Descriptor>> y = List.of(
+				      new Order<Descriptor>(
+				        "best",
+				        Comparator.comparing(item -> ((Basket)item.getData()).getWeaveCount())
+				      )
+				    );
+
+				    // Compiler error after removing redundant argument...
+				    List<Order<Descriptor>> z = List.of(
+				      new Order<>(
+				        "best",
+				        Comparator.comparing(item -> ((Basket)item.getData()).getWeaveCount())
+				      )
+				    );
+				  }
+
+				  public interface Descriptor {
+				  }
+
+				  public static class Order<T extends Descriptor> {
+				    public final String resourceKey;
+				    public final Comparator<Item<T>> comparator;
+
+				    public <G extends Comparable<G>> Order(String resourceKey, Comparator<Item<T>> comparator) {
+				      this.resourceKey = resourceKey;
+				      this.comparator = comparator;
+				    }
+				  }
+
+				  public static class Item<T extends Descriptor> {
+				    private final T data;
+
+				    public Item(T data) {
+				      this.data = data;
+				    }
+
+				    public T getData() {
+				      return data;
+				    }
+				  }
+
+				  public static class Basket implements Descriptor {
+				    public int getWeaveCount() {
+				      return 5;
+				    }
+				  }
+				}
+				"""
+			},
+			"----------\n" +
+			"1. ERROR in TypeArgBug.java (at line 18)\n" +
+			"	new Order<Descriptor>(\n" +
+			"	    ^^^^^\n" +
+			"Redundant specification of type arguments <TypeArgBug.Descriptor>\n" +
+			"----------\n",
+			null, true, customOptions);
+	}
+	public void testGH1475() {
+		runConformTest(
+			new String[] {
+				"CannotInferTypeArguments.java",
+				"""
+				public class CannotInferTypeArguments<V extends java.util.concurrent.Semaphore> {
+					class Fish {
+						public V getFlavour() {
+							return null;
+						}
+					}
+
+					class Shark<E extends Fish> {
+					}
+
+					<E extends Fish> Shark<E> fish() {
+						// This compiles fine with javac, but will only work in Eclipse with new Shark<E>();
+						return new Shark<>();
+					}
+
+					<E extends Fish> Shark<E> fish2() {
+						Shark<E> s = new Shark<>();
+						return s;
+					}
+				}
+				"""
+			});
+	}
+
+	public void testBug569231() {
+		runConformTest(
+			new String[] {
+				"GenericsBug.java",
+				"""
+				import java.util.function.Function;
+				import java.util.function.Predicate;
+
+				public class GenericsBug<S> {
+					public static interface MyInterface<U> {}
+
+					public static class SubClass<U,V> implements MyInterface<V>{
+						public SubClass(Function<U,V> g, MyInterface<V>... i) { }
+					}
+
+					public static class OptSubClass<U> implements MyInterface<U> {
+						public OptSubClass(String s, Predicate<U> p, MyInterface<U>... i) { }
+
+					}
+
+					public static class ParamClass<T> {
+						public T    getU()    { return null;}
+					}
+
+					GenericsBug(MyInterface<S> in1, MyInterface<S> in2) { }
+
+
+					public static class MySubClass extends SubClass<ParamClass<Boolean>,Boolean> {
+						public MySubClass() {
+							super(ParamClass::getU);
+						}
+					}
+
+					public static void foo() {
+						SubClass<ParamClass<Boolean>,Boolean> sc = new SubClass<>(ParamClass::getU);
+						new GenericsBug<>(new MySubClass(),
+										  new OptSubClass<>("foo", t->t, sc));
+					}
+				};
+				"""
+			});
+	}
+
+	public void testBug566989() {
+		runConformTest(
+			new String[] {
+				"InferTypeTest.java",
+				"""
+				import java.util.*;
+				public class InferTypeTest<T> {
+
+					@FunctionalInterface
+					interface DataLoader<T> {
+						List<T> loadData(int offset, int limit);
+					}
+
+					class DataList<T> extends ArrayList<T>{
+						public DataList(DataLoader<T> dataLoader) {
+						}
+					}
+
+					void testDataList() {
+						List<String> list = new ArrayList<>(new DataList<>((offset, limit) -> Collections.emptyList()));
+					}
+
+				}
+				"""
+			});
+	}
+
+	public void testBug509848() {
+		runConformTest(
+			new String[] {
+				"Generics.java",
+				"""
+				public class Generics {
+
+					public MyGeneric<?> test() {
+						boolean maybe = false;
+
+						return lambda((String result) -> {
+							if (maybe) {
+								return new MyGeneric<>(MyGeneric.of(null));
+							}
+							else {
+								return new MyGeneric<>(MyGeneric.of(""));
+							}
+						});
+					}
+
+					static class MyGeneric <T> {
+						T t;
+						public MyGeneric(MyGeneric<T> t) {
+						}
+						public static <R> MyGeneric<R> of(R t) {
+							return null;
+						}
+					}
+
+					public <R> MyGeneric<R> lambda(java.util.function.Function<String, MyGeneric<R>> mapper) {
+						return null;
+					}
+				}
+				"""
+			});
+	}
+
+	public void testGH2386() {
+		Runner runner = new Runner();
+		runner.testFiles = new String[] {
+			"TestClass.java",
+			"""
+			public class TestClass<E> {
+			    class Itr { }
+			    class C123172 extends TestClass.Itr<Missing<E>> { }
+			}
+			"""
+		};
+		runner.expectedCompilerLog = """
+			----------
+			1. ERROR in TestClass.java (at line 3)
+				class C123172 extends TestClass.Itr<Missing<E>> { }
+				                      ^^^^^^^^^^^^^
+			The type TestClass.Itr is not generic; it cannot be parameterized with arguments <Missing<E>>
+			----------
+			2. ERROR in TestClass.java (at line 3)
+				class C123172 extends TestClass.Itr<Missing<E>> { }
+				                                    ^^^^^^^
+			Missing cannot be resolved to a type
+			----------
+			""";
+		runner.runNegativeTest();
+	}
+
+	public void testGH2399() {
+		Runner runner = new Runner();
+		runner.testFiles = new String[] {
+			"TestClass.java",
+			"""
+			public class TestClass implements TestClass.Missing1<TestClass.Missing2<TestClass.Missing3>> {
+			}
+			"""
+		};
+		runner.expectedCompilerLog = """
+			----------
+			1. ERROR in TestClass.java (at line 1)
+				public class TestClass implements TestClass.Missing1<TestClass.Missing2<TestClass.Missing3>> {
+				                                  ^^^^^^^^^^^^^^^^^^
+			Cycle detected: the type TestClass cannot extend/implement itself or one of its own member types
+			----------
+			""";
+		runner.runNegativeTest();
 	}
 }

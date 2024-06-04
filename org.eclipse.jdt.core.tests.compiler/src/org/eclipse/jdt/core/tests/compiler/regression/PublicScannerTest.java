@@ -77,7 +77,6 @@ public class PublicScannerTest extends AbstractRegressionTest {
 		list.add(TerminalTokens.TokenNameBeginCaseExpr);
 		list.add(TerminalTokens.TokenNameBeginIntersectionCast);
 		list.add(TerminalTokens.TokenNameBeginLambda);
-		list.add(TerminalTokens.TokenNameBeginRecordPattern);
 		list.add(TerminalTokens.TokenNameBeginTypeArguments);
 		list.add(TerminalTokens.TokenNameElidedSemicolonAndRightBrace);
 		SYNTHETIC_SKIP_TOKENS = Collections.unmodifiableList(list);
@@ -302,7 +301,7 @@ public class PublicScannerTest extends AbstractRegressionTest {
 
 		Field[] tsFields = ITerminalSymbols.class.getFields();
 		Set<String> ttNames = nameToValue.keySet();
-		Set<String> tsSet = Arrays.asList(tsFields).stream().map(x -> x.getName()).collect(Collectors.toSet());
+		Set<String> tsSet = Arrays.asList(tsFields).stream().map(Field::getName).collect(Collectors.toSet());
 		StringBuilder sb = new StringBuilder();
 		String ident = "\t\t\t";
 		for (String ttName : ttNames) {

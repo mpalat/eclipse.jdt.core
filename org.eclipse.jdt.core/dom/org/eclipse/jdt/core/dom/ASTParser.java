@@ -16,7 +16,6 @@
 package org.eclipse.jdt.core.dom;
 
 import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +47,7 @@ import org.eclipse.jdt.internal.core.BasicCompilationUnit;
 import org.eclipse.jdt.internal.core.BinaryType;
 import org.eclipse.jdt.internal.core.ClassFileWorkingCopy;
 import org.eclipse.jdt.internal.core.DefaultWorkingCopyOwner;
+import org.eclipse.jdt.internal.core.JavaModelManager;
 import org.eclipse.jdt.internal.core.PackageFragment;
 import org.eclipse.jdt.internal.core.dom.util.DOMASTUtil;
 import org.eclipse.jdt.internal.core.util.CodeSnippetParsingUtil;
@@ -238,7 +238,7 @@ public class ASTParser {
 
 	private List<Classpath> getClasspath() throws IllegalStateException {
 		Main main = new Main(new PrintWriter(System.out), new PrintWriter(System.err), false/*systemExit*/, null/*options*/, null/*progress*/);
-		ArrayList<Classpath> allClasspaths = new ArrayList<Classpath>();
+		ArrayList<Classpath> allClasspaths = new ArrayList<>();
 		try {
 			if ((this.bits & CompilationUnitResolver.INCLUDE_RUNNING_VM_BOOTCLASSPATH) != 0) {
 				org.eclipse.jdt.internal.compiler.util.Util.collectRunningVMBootclasspath(allClasspaths);
@@ -252,10 +252,10 @@ public class ASTParser {
 				}
 			}
 			if (this.classpaths != null) {
-				for (int i = 0, max = this.classpaths.length; i < max; i++) {
+				for (String classpath : this.classpaths) {
 					main.processPathEntries(
 							Main.DEFAULT_SIZE_CLASSPATH,
-							allClasspaths, this.classpaths[i], null, false, false);
+							allClasspaths, classpath, null, false, false);
 				}
 			}
 			ArrayList pendingErrors = main.pendingErrors;
@@ -378,7 +378,8 @@ public class ASTParser {
 			// copy client's options so as to not do any side effect on them
 			options = new HashMap<>(options);
 		}
-		options.remove(JavaCore.COMPILER_TASK_TAGS); // no need to parse task tags
+		// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/2179
+		// options.remove(JavaCore.COMPILER_TASK_TAGS); // no need to parse task tags
 		this.compilerOptions = options;
 	}
 
@@ -601,7 +602,9 @@ public class ASTParser {
 	 *
 	 * <p>This method automatically sets the project (and compiler
 	 * options) based on the given compilation unit, in a manner
-	 * equivalent to {@link #setProject(IJavaProject) setProject(source.getJavaProject())}.</p>
+	 * equivalent to {@link #setProject(IJavaProject) setProject(source.getJavaProject())}
+	 * and the custom compiler options supported by the compilation unit through
+	 * {@link ICompilationUnit#getCustomOptions() getCustomOptions()}.</p>
 	 *
 	 * <p>This source is not used when the AST is built using
 	 * {@link #createASTs(ICompilationUnit[], String[], ASTRequestor, IProgressMonitor)}.</p>
@@ -611,6 +614,9 @@ public class ASTParser {
 	 */
 	public void setSource(ICompilationUnit source) {
 		setSource((ITypeRoot)source);
+		if (source != null) {
+			setCompilerOptions(source.getOptions(true));
+		}
 	}
 
 	/**
@@ -1117,6 +1123,9 @@ public class ASTParser {
 	}
 
 	private ASTNode internalCreateAST(IProgressMonitor monitor) {
+		return JavaModelManager.cacheZipFiles(() -> internalCreateASTCached(monitor));
+	}
+	private ASTNode internalCreateASTCached(IProgressMonitor monitor) {
 		boolean needToResolveBindings = (this.bits & CompilationUnitResolver.RESOLVE_BINDING) != 0;
 		switch(this.astKind) {
 			case K_CLASS_BODY_DECLARATIONS :
@@ -1136,11 +1145,8 @@ public class ASTParser {
 								}
 							} catch(JavaModelException e) {
 								// an error occured accessing the java element
-								StringWriter stringWriter = new StringWriter();
-								try (PrintWriter writer = new PrintWriter(stringWriter)) {
-									e.printStackTrace(writer);
-								}
-								throw new IllegalStateException(String.valueOf(stringWriter.getBuffer()));
+								CharSequence stackTrace = org.eclipse.jdt.internal.compiler.util.Util.getStackTrace(e);
+								throw new IllegalStateException(stackTrace.toString());
 							}
 						}
 					}
@@ -1185,7 +1191,7 @@ public class ASTParser {
 							BinaryType type = (BinaryType) this.typeRoot.findPrimaryType();
 							String fileNameString = null;
 							if (type != null) {
-								IBinaryType binaryType = (IBinaryType) type.getElementInfo();
+								IBinaryType binaryType = type.getElementInfo();
 								// file name is used to recreate the Java element, so it has to be the toplevel .class file name
 								char[] fileName = binaryType.getFileName();
 
@@ -1206,11 +1212,8 @@ public class ASTParser {
 							sourceUnit = new BasicCompilationUnit(sourceString.toCharArray(), Util.toCharArrays(packageFragment.names), fileNameString, this.typeRoot);
 						} catch(JavaModelException e) {
 							// an error occured accessing the java element
-							StringWriter stringWriter = new StringWriter();
-							try (PrintWriter writer = new PrintWriter(stringWriter)) {
-								e.printStackTrace(writer);
-							}
-							throw new IllegalStateException(String.valueOf(stringWriter.getBuffer()));
+							CharSequence stackTrace = org.eclipse.jdt.internal.compiler.util.Util.getStackTrace(e);
+							throw new IllegalStateException(stackTrace.toString());
 						}
 					} else if (this.rawSource != null) {
 						needToResolveBindings =

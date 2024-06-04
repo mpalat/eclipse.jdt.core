@@ -645,7 +645,7 @@ public TypeBinding postConversionType(Scope scope) {
 }
 
 @Override
-public StringBuffer printExpression(int indent, StringBuffer output) {
+public StringBuilder printExpression(int indent, StringBuilder output) {
 	return this.receiver.printExpression(0, output).append('.').append(this.token);
 }
 
@@ -741,6 +741,16 @@ public TypeBinding resolveType(BlockScope scope) {
 					&& (TypeBinding.equalsEquals(sourceType, declaringClass) || TypeBinding.equalsEquals(sourceType.superclass, declaringClass)) // enum constant body
 					&& methodScope.isInsideInitializerOrConstructor()) {
 				scope.problemReporter().enumStaticFieldUsedDuringInitialization(this.binding, this);
+			}
+		}
+	} else {
+		if (this.inPreConstructorContext && this.actualReceiverType != null &&
+ 				(this.receiver instanceof ThisReference thisReference
+ 						&& thisReference.isImplicitThis())) { // explicit thisReference error flagging taken care in ThisReference
+			MethodScope ms = scope.methodScope();
+			MethodBinding method = ms != null ? ms.referenceMethodBinding() : null;
+			if (method != null && TypeBinding.equalsEquals(method.declaringClass, this.actualReceiverType)) {
+				scope.problemReporter().errorExpressionInPreConstructorContext(this);
 			}
 		}
 	}

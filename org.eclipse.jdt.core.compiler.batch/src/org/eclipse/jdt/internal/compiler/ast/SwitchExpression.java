@@ -23,7 +23,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 import java.util.stream.Collectors;
 
 import org.eclipse.jdt.core.compiler.CharOperation;
@@ -40,6 +39,7 @@ import org.eclipse.jdt.internal.compiler.lookup.FieldBinding;
 import org.eclipse.jdt.internal.compiler.lookup.LocalVariableBinding;
 import org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
 import org.eclipse.jdt.internal.compiler.lookup.MethodBinding;
+import org.eclipse.jdt.internal.compiler.lookup.MethodScope;
 import org.eclipse.jdt.internal.compiler.lookup.PolyTypeBinding;
 import org.eclipse.jdt.internal.compiler.lookup.Scope;
 import org.eclipse.jdt.internal.compiler.lookup.TypeBinding;
@@ -59,8 +59,6 @@ public class SwitchExpression extends SwitchStatement implements IPolyExpression
 	public List<Expression> resultExpressions;
 	public boolean resolveAll;
 	/* package */ List<Integer> resultExpressionNullStatus;
-	LocalVariableBinding hiddenYield;
-	/* package */ int hiddenYieldResolvedPosition = -1;
 	public boolean containsTry = false;
 	private static Map<TypeBinding, TypeBinding[]> type_map;
 	static final char[] SECRET_YIELD_VALUE_NAME = " yieldValue".toCharArray(); //$NON-NLS-1$
@@ -68,7 +66,7 @@ public class SwitchExpression extends SwitchStatement implements IPolyExpression
 	List<LocalVariableBinding> typesOnStack;
 
 	static {
-		type_map = new HashMap<TypeBinding, TypeBinding[]>();
+		type_map = new HashMap<>();
 		type_map.put(TypeBinding.CHAR, new TypeBinding[] {TypeBinding.CHAR, TypeBinding.INT});
 		type_map.put(TypeBinding.SHORT, new TypeBinding[] {TypeBinding.SHORT, TypeBinding.BYTE, TypeBinding.INT});
 		type_map.put(TypeBinding.BYTE, new TypeBinding[] {TypeBinding.BYTE, TypeBinding.INT});
@@ -264,31 +262,23 @@ public class SwitchExpression extends SwitchStatement implements IPolyExpression
 		lvb.declaration = new LocalDeclaration(name, 0, 0);
 		return lvb;
 	}
-	private int getNextOffset(LocalVariableBinding local) {
-		int delta =  ((TypeBinding.equalsEquals(local.type, TypeBinding.LONG)) || (TypeBinding.equalsEquals(local.type, TypeBinding.DOUBLE))) ?
-				2 : 1;
-		return local.resolvedPosition + delta;
-	}
-	private void processTypesBindingsOnStack(CodeStream codeStream) {
-		int count = 0;
+	private void spillOperandStack(CodeStream codeStream) {
 		int nextResolvedPosition = this.scope.offset;
-		if (!codeStream.switchSaveTypeBindings.empty()) {
-			this.typesOnStack = new ArrayList<>();
-			int index = 0;
-			Stack<TypeBinding> typeStack = new Stack<>();
-			int sz = codeStream.switchSaveTypeBindings.size();
-			for (int i = codeStream.lastSwitchCumulativeSyntheticVars; i < sz; ++i) {
-				typeStack.add(codeStream.switchSaveTypeBindings.get(i));
-			}
-			while (!typeStack.empty()) {
-				TypeBinding type = typeStack.pop();
-				LocalVariableBinding lvb = addTypeStackVariable(codeStream, type, TypeIds.T_undefined, index++, nextResolvedPosition);
-				nextResolvedPosition = getNextOffset(lvb);
-				this.typesOnStack.add(lvb);
-				codeStream.store(lvb, false);
-				codeStream.addVariable(lvb);
-				++count;
-			}
+		this.typesOnStack = new ArrayList<>();
+		int index = 0;
+		while (codeStream.operandStack.size() > 0) {
+			TypeBinding type = codeStream.operandStack.peek();
+			LocalVariableBinding lvb = addTypeStackVariable(codeStream, type, TypeIds.T_undefined, index++, nextResolvedPosition);
+			nextResolvedPosition += switch (lvb.type.id) {
+				case TypeIds.T_long, TypeIds.T_double -> 2;
+				default -> 1;
+			};
+			this.typesOnStack.add(lvb);
+			codeStream.store(lvb, false);
+			codeStream.addVariable(lvb);
+		}
+		if (codeStream.stackDepth != 0 || codeStream.operandStack.size() != 0) {
+			codeStream.classFile.referenceBinding.scope.problemReporter().operandStackSizeInappropriate(codeStream.classFile.referenceBinding.scope.referenceContext);
 		}
 		// now keep a position reserved for yield result value
 		this.yieldResolvedPosition = nextResolvedPosition;
@@ -296,14 +286,14 @@ public class SwitchExpression extends SwitchStatement implements IPolyExpression
 				(TypeBinding.equalsEquals(this.resolvedType, TypeBinding.DOUBLE))) ?
 				2 : 1;
 
-		codeStream.lastSwitchCumulativeSyntheticVars += count + 1; // 1 for yield var
 		int delta = nextResolvedPosition - this.scope.offset;
 		this.scope.adjustLocalVariablePositions(delta, false);
 	}
-	public void loadStoredTypesAndKeep(CodeStream codeStream) {
+	public void refillOperandStack(CodeStream codeStream) {
 		List<LocalVariableBinding> tos = this.typesOnStack;
 		int sz = tos != null ? tos.size() : 0;
-		codeStream.clearTypeBindingStack();
+		codeStream.operandStack.clear();
+		codeStream.stackDepth = 0;
 		int index = sz - 1;
 		while (index >= 0) {
 			LocalVariableBinding lvb = tos.get(index--);
@@ -323,15 +313,12 @@ public class SwitchExpression extends SwitchStatement implements IPolyExpression
 	}
 	@Override
 	public void generateCode(BlockScope currentScope, CodeStream codeStream, boolean valueRequired) {
-		int tmp = 0;
 		if (this.containsTry) {
-			tmp = codeStream.lastSwitchCumulativeSyntheticVars;
-			processTypesBindingsOnStack(codeStream);
+			spillOperandStack(codeStream);
 		}
 		super.generateCode(currentScope, codeStream);
 		if (this.containsTry) {
 			removeStoredTypes(codeStream);
-			codeStream.lastSwitchCumulativeSyntheticVars = tmp;
 		}
 		if (!valueRequired) {
 			// switch expression is saved to a variable that is not used. We need to pop the generated value from the stack
@@ -387,18 +374,33 @@ public class SwitchExpression extends SwitchStatement implements IPolyExpression
 	}
 
 	@Override
-	public void collectPatternVariablesToScope(LocalVariableBinding[] variables, BlockScope skope) {
-		// Do nothing. This will be called later during resolveType()
+	public void resolve(BlockScope upperScope) {
+		resolveType(upperScope);
 	}
+
 	@Override
 	public TypeBinding resolveType(BlockScope upperScope) {
-		return resolveTypeInternal(upperScope);
-	}
-	public TypeBinding resolveTypeInternal(BlockScope upperScope) {
 		try {
 			int resultExpressionsCount;
 			if (this.constant != Constant.NotAConstant) {
 				this.constant = Constant.NotAConstant;
+
+				if (this.containsTry) {
+					MethodScope methodScope = upperScope.methodScope();
+					if (methodScope != null) {
+						if (methodScope.referenceContext instanceof AbstractMethodDeclaration amd) {
+							amd.containsSwitchWithTry = true;
+						} else if (methodScope.referenceContext instanceof LambdaExpression lambda) {
+							lambda.containsSwitchWithTry = true;
+						} else if (methodScope.referenceContext instanceof TypeDeclaration typeDecl) {
+							if (methodScope.isStatic) {
+								typeDecl.clinitContainsSwitchWithTry = true;
+							} else {
+								typeDecl.initContainsSwitchWithTry = true;
+							}
+						}
+					}
+				}
 
 				// A switch expression is a poly expression if it appears in an assignment context or an invocation context (5.2, 5.3).
 				// Otherwise, it is a standalone expression.
@@ -413,7 +415,7 @@ public class SwitchExpression extends SwitchStatement implements IPolyExpression
 
 				if (this.originalTypeMap == null)
 					this.originalTypeMap = new HashMap<>();
-				resolve(upperScope);
+				super.resolve(upperScope);
 
 				if (this.statements == null || this.statements.length == 0) {
 					//	Report Error JLS 13 15.28.1  The switch block must not be empty.
@@ -636,21 +638,7 @@ public class SwitchExpression extends SwitchStatement implements IPolyExpression
 		computeNullStatus(flowInfo, flowContext);
 		return flowInfo;
 	}
-	@Override
-	protected void addSecretTryResultVariable() {
-		if (this.containsTry) {
-			this.hiddenYield =
-					new LocalVariableBinding(
-						SwitchExpression.SECRET_YIELD_VALUE_NAME,
-						null,
-						ClassFileConstants.AccDefault,
-						false);
-			this.hiddenYield.setConstant(Constant.NotAConstant);
-			this.hiddenYield.useFlag = LocalVariableBinding.USED;
-			this.scope.addLocalVariable(this.hiddenYield);
-			this.hiddenYield.declaration = new LocalDeclaration(SECRET_YIELD_VALUE_NAME, 0, 0);
-		}
-	}
+
 	private TypeBinding check_csb(Set<TypeBinding> typeSet, TypeBinding candidate) {
 		if (!typeSet.contains(candidate))
 			return null;

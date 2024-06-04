@@ -143,7 +143,6 @@ public class PublicScanner implements IScanner, ITerminalSymbols {
 			case TerminalTokens.TokenNameBeginCaseExpr : nextToken = getNextToken(); break;
 			case TerminalTokens.TokenNameBeginIntersectionCast : nextToken = getNextToken(); break;
 			case TerminalTokens.TokenNameBeginLambda : nextToken = getNextToken(); break;
-			case TerminalTokens.TokenNameBeginRecordPattern : nextToken = getNextToken(); break;
 			case TerminalTokens.TokenNameBeginTypeArguments : nextToken = getNextToken(); break;
 			case TerminalTokens.TokenNameCOLON : nextToken = ITerminalSymbols.TokenNameCOLON; break;
 			case TerminalTokens.TokenNameCOLON_COLON : nextToken = ITerminalSymbols.TokenNameCOLON_COLON; break;
@@ -204,8 +203,10 @@ public class PublicScanner implements IScanner, ITerminalSymbols {
 			case TerminalTokens.TokenNameSEMICOLON : nextToken = ITerminalSymbols.TokenNameSEMICOLON; break;
 			case TerminalTokens.TokenNameSingleQuoteStringLiteral : nextToken = ITerminalSymbols.TokenNameSingleQuoteStringLiteral; break;
 			case TerminalTokens.TokenNameStringLiteral : nextToken = ITerminalSymbols.TokenNameStringLiteral; break;
+			case TerminalTokens.TokenNameStringTemplate : nextToken = ITerminalSymbols.TokenNameStringTemplate; break;
 			case TerminalTokens.TokenNameTWIDDLE : nextToken = ITerminalSymbols.TokenNameTWIDDLE; break;
 			case TerminalTokens.TokenNameTextBlock : nextToken = ITerminalSymbols.TokenNameTextBlock; break;
+			case TerminalTokens.TokenNameTextBlockTemplate : nextToken = ITerminalSymbols.TokenNameTextBlockTemplate; break;
 			case TerminalTokens.TokenNameUNSIGNED_RIGHT_SHIFT : nextToken = ITerminalSymbols.TokenNameUNSIGNED_RIGHT_SHIFT; break;
 			case TerminalTokens.TokenNameUNSIGNED_RIGHT_SHIFT_EQUAL : nextToken = ITerminalSymbols.TokenNameUNSIGNED_RIGHT_SHIFT_EQUAL; break;
 			case TerminalTokens.TokenNameWHITESPACE : nextToken = ITerminalSymbols.TokenNameWHITESPACE; break;
@@ -266,6 +267,7 @@ public class PublicScanner implements IScanner, ITerminalSymbols {
 			case TerminalTokens.TokenNamevolatile : nextToken = ITerminalSymbols.TokenNamevolatile; break;
 			case TerminalTokens.TokenNamewhile : nextToken = ITerminalSymbols.TokenNamewhile; break;
 			case TerminalTokens.TokenNameRestrictedIdentifierWhen : nextToken = ITerminalSymbols.TokenNameRestrictedIdentifierWhen; break;
+			case TerminalTokens.TokenNameUNDERSCORE : nextToken = ITerminalSymbols.TokenNameUNDERSCORE; break;
 			default:
 				throw Scanner.invalidToken(nextToken);
 		}

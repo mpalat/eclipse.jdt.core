@@ -101,28 +101,25 @@ public class CompletionJavadoc extends Javadoc {
 		}
 	}
 
-	/*
-	 * @see org.eclipse.jdt.internal.compiler.ast.ASTNode#print(int, java.lang.StringBuffer)
-	 */
 	@Override
-	public StringBuffer print(int indent, StringBuffer output) {
+	public StringBuilder print(int indent, StringBuilder output) {
 		printIndent(indent, output).append("/**\n"); //$NON-NLS-1$
 		boolean nodePrinted = false;
 		if (this.paramReferences != null) {
-			for (int i = 0, length = this.paramReferences.length; i < length; i++) {
+			for (JavadocSingleNameReference ref : this.paramReferences) {
 				printIndent(indent, output).append(" * @param "); //$NON-NLS-1$
-				this.paramReferences[i].print(indent, output).append('\n');
+				ref.print(indent, output).append('\n');
 				if (!nodePrinted && this.completionNode != null) {
-					nodePrinted =  this.completionNode == this.paramReferences[i];
+					nodePrinted =  this.completionNode == ref;
 				}
 			}
 		}
 		if (this.paramTypeParameters != null) {
-			for (int i = 0, length = this.paramTypeParameters.length; i < length; i++) {
+			for (JavadocSingleTypeReference paramTypeParameter : this.paramTypeParameters) {
 				printIndent(indent, output).append(" * @param <"); //$NON-NLS-1$
-				this.paramTypeParameters[i].print(indent, output).append(">\n"); //$NON-NLS-1$
+				paramTypeParameter.print(indent, output).append(">\n"); //$NON-NLS-1$
 				if (!nodePrinted && this.completionNode != null) {
-					nodePrinted =  this.completionNode == this.paramTypeParameters[i];
+					nodePrinted =  this.completionNode == paramTypeParameter;
 				}
 			}
 		}
@@ -131,20 +128,20 @@ public class CompletionJavadoc extends Javadoc {
 			this.returnStatement.print(indent, output).append('\n');
 		}
 		if (this.exceptionReferences != null) {
-			for (int i = 0, length = this.exceptionReferences.length; i < length; i++) {
+			for (TypeReference ref : this.exceptionReferences) {
 				printIndent(indent, output).append(" * @throws "); //$NON-NLS-1$
-				this.exceptionReferences[i].print(indent, output).append('\n');
+				ref.print(indent, output).append('\n');
 				if (!nodePrinted && this.completionNode != null) {
-					nodePrinted =  this.completionNode == this.exceptionReferences[i];
+					nodePrinted =  this.completionNode == ref;
 				}
 			}
 		}
 		if (this.seeReferences != null) {
-			for (int i = 0, length = this.seeReferences.length; i < length; i++) {
+			for (Expression ref : this.seeReferences) {
 				printIndent(indent, output).append(" * @see "); //$NON-NLS-1$
-				this.seeReferences[i].print(indent, output).append('\n');
+				ref.print(indent, output).append('\n');
 				if (!nodePrinted && this.completionNode != null) {
-					nodePrinted =  this.completionNode == this.seeReferences[i];
+					nodePrinted =  this.completionNode == ref;
 				}
 			}
 		}

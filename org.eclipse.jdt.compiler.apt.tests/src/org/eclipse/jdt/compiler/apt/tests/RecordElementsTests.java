@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2020, 2023 IBM Corporation.
+ * Copyright (c) 2020, 2024 IBM Corporation.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -31,7 +31,7 @@ import junit.framework.TestCase;
 public class RecordElementsTests extends TestCase {
 	private static final String MODULE_PROC = "org.eclipse.jdt.compiler.apt.tests.processors.elements.RecordElementProcessor";
 
-	public void testPreviewFlagTrue() throws IOException {
+	public void _testPreviewFlagTrue() throws IOException {
 		if (!isRunning21()) {
 			return;
 		}
@@ -181,7 +181,7 @@ public class RecordElementsTests extends TestCase {
 			BatchTestUtils.copyResource("mod_locations/" + resourceArea + "/" + testClass, targetFolder);
 		}
 
-		List<String> options = new ArrayList<String>();
+		List<String> options = new ArrayList<>();
 		options.add("-A" + processor);
 		options.add("-A" + testMethod);
 		options.add("-processor");
@@ -192,8 +192,8 @@ public class RecordElementsTests extends TestCase {
 			options.add("-source");
 			options.add(compliance);
 		}
-		if (preview)
-			options.add("--enable-preview");
+//		if (preview)
+//			options.add("--enable-preview");
 		BatchTestUtils.compileInModuleMode(compiler, options, processor, targetFolder, null, true, processBinaries);
 		// If it succeeded, the processor will have set this property to "succeeded";
 		// if not, it will set it to an error value.

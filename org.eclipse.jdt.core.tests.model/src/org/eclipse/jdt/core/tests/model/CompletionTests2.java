@@ -196,11 +196,8 @@ public static Test suite() {
 
 static File createFile(File parent, String name, String content) throws IOException {
 	File file = new File(parent, name);
-	FileOutputStream out = new FileOutputStream(file);
-	try {
+	try (FileOutputStream out = new FileOutputStream(file)) {
 		out.write(content.getBytes());
-	} finally {
-		out.close();
 	}
 	return file;
 }
@@ -4569,8 +4566,8 @@ public void testBug276890_03() throws Exception {
 	}
 }
 /**
- * @bug 162621: [model][delta] Validation errors do not clear after replacing jar file
- * @test Ensures that changing an internal jar and refreshing takes the change into account
+ * bug 162621: [model][delta] Validation errors do not clear after replacing jar file
+ * test Ensures that changing an internal jar and refreshing takes the change into account
  * @see "https://bugs.eclipse.org/bugs/show_bug.cgi?id=162621"
  */
 public void testChangeInternalJar() throws CoreException, IOException {

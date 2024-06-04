@@ -2453,10 +2453,19 @@ private static char[][] enclosingTypeNames(IType type) {
 		case IJavaElement.FIELD:
 		case IJavaElement.INITIALIZER:
 		case IJavaElement.METHOD:
+			char[] typeName = IIndexConstants.ONE_STAR;
+			try {
+				String superclassName = type.getSuperclassName();
+				if (superclassName != null) {
+					typeName = (type.getOccurrenceCount() + ".new " + superclassName + "(){}").toCharArray(); //$NON-NLS-1$ //$NON-NLS-2$
+				}
+			} catch (JavaModelException e) {
+				// fall back to using '*'
+			}
 			IType declaringClass = ((IMember) parent).getDeclaringType();
 			return CharOperation.arrayConcat(
 				enclosingTypeNames(declaringClass),
-				new char[][] {declaringClass.getElementName().toCharArray(), IIndexConstants.ONE_STAR});
+				new char[][] {declaringClass.getElementName().toCharArray(), typeName});
 		case IJavaElement.TYPE:
 			return CharOperation.arrayConcat(
 				enclosingTypeNames((IType)parent),
@@ -2519,10 +2528,9 @@ public void findIndexMatches(Index index, IndexQueryRequestor requestor, SearchP
 
 		String containerPath = index.containerPath;
 		char separator = index.separator;
-		for (int i = 0, l = entries.length; i < l; i++) {
+		for (EntryResult entry : entries) {
 			if (monitor != null && monitor.isCanceled()) throw new OperationCanceledException();
 
-			EntryResult entry = entries[i];
 			SearchPattern decodedResult = pattern.getBlankPattern();
 			decodedResult.decodeIndexKey(entry.getWord());
 			if (pattern.matchesDecodedKey(decodedResult)) {
@@ -2530,8 +2538,8 @@ public void findIndexMatches(Index index, IndexQueryRequestor requestor, SearchP
 				// to decide whether to do so.
 				if (resolveDocumentName) {
 					String[] names = entry.getDocumentNames(index);
-					for (int j = 0, n = names.length; j < n; j++)
-						acceptMatch(names[j], containerPath, separator, decodedResult, requestor, participant, scope, monitor);
+					for (String name : names)
+						acceptMatch(name, containerPath, separator, decodedResult, requestor, participant, scope, monitor);
 				} else {
 					acceptMatch("", containerPath, separator, decodedResult, requestor, participant, scope, monitor); //$NON-NLS-1$
 				}

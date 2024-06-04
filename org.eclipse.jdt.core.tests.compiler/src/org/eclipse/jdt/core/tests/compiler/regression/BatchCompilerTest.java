@@ -433,7 +433,6 @@ public void test007(){
 		"[reading    java/lang/String.class]\n" +
 		"[analyzing  ---OUTPUT_DIR_PLACEHOLDER---/X.java - #1/1]\n" +
 		"[reading    java/util/List.class]\n" +
-		"[reading    java/lang/Throwable.class]\n" +
 		"[writing    X.class - #1]\n" +
 		"[completed  ---OUTPUT_DIR_PLACEHOLDER---/X.java - #1/1]\n" +
 		"[1 unit compiled]\n" +
@@ -566,7 +565,6 @@ public void test010(){
 		"[reading    java/lang/String.class]\n" +
 		"[analyzing  ---OUTPUT_DIR_PLACEHOLDER---/X.java - #1/1]\n" +
 		"[reading    java/util/List.class]\n" +
-		"[reading    java/lang/Throwable.class]\n" +
 		"[writing    X.class - #1]\n" +
 		"[completed  ---OUTPUT_DIR_PLACEHOLDER---/X.java - #1/1]\n" +
 		"[1 unit compiled]\n" +
@@ -1035,13 +1033,17 @@ public void test012b(){
 			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.nonnull.secondary\" value=\"\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.nonnullbydefault\" value=\"org.eclipse.jdt.annotation.NonNullByDefault\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.nonnullbydefault.secondary\" value=\"\"/>\n" +
+			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.notowning\" value=\"org.eclipse.jdt.annotation.NotOwning\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.nullable\" value=\"org.eclipse.jdt.annotation.Nullable\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.nullable.secondary\" value=\"\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.nullanalysis\" value=\"disabled\"/>\n" +
+			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.owning\" value=\"org.eclipse.jdt.annotation.Owning\"/>\n" +
+			"		<option key=\"org.eclipse.jdt.core.compiler.annotation.resourceanalysis\" value=\"disabled\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.codegen.inlineJsrBytecode\" value=\"disabled\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.codegen.lambda.genericSignature\" value=\"do not generate\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.codegen.methodParameters\" value=\"do not generate\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.codegen.shareCommonFinallyBlocks\" value=\"disabled\"/>\n" +
+			"		<option key=\"org.eclipse.jdt.core.compiler.codegen.simulateOperandStack\" value=\"enabled\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.codegen.targetPlatform\" value=\"1.5\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.codegen.unusedLocal\" value=\"optimize out\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.codegen.useStringConcatFactory\" value=\"enabled\"/>\n" +
@@ -1079,8 +1081,10 @@ public void test012b(){
 			"		<option key=\"org.eclipse.jdt.core.compiler.problem.hiddenCatchBlock\" value=\"warning\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.problem.includeNullInfoFromAsserts\" value=\"disabled\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.problem.incompatibleNonInheritedInterfaceMethod\" value=\"warning\"/>\n" +
+			"		<option key=\"org.eclipse.jdt.core.compiler.problem.incompatibleOwningContract\" value=\"warning\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.problem.incompleteEnumSwitch\" value=\"warning\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.problem.indirectStaticAccess\" value=\"ignore\"/>\n" +
+			"		<option key=\"org.eclipse.jdt.core.compiler.problem.insufficientResourceAnalysis\" value=\"warning\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.problem.invalidJavadoc\" value=\"ignore\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.problem.invalidJavadocTags\" value=\"disabled\"/>\n" +
 			"		<option key=\"org.eclipse.jdt.core.compiler.problem.invalidJavadocTagsDeprecatedRef\" value=\"disabled\"/>\n" +
@@ -3030,8 +3034,7 @@ public void test052(){
 	try {
 		new File(OUTPUT_DIR).mkdirs();
 		File barFile = new File(OUTPUT_DIR +  File.separator + "Bar.java");
-		FileOutputStream barOutput = new FileOutputStream(barFile);
-		try {
+		try (FileOutputStream barOutput = new FileOutputStream(barFile)) {
 			String barContents =
 				"public class Bar	\n" +
 				"{	\n" +
@@ -3040,8 +3043,6 @@ public void test052(){
 				"  }	\n" +
 				"}\n";
 			barOutput.write(barContents.getBytes());
-		} finally {
-			barOutput.close();
 		}
 	} catch(IOException e) {
 		// do nothing, will fail below
@@ -8398,7 +8399,6 @@ public void test230_sourcepath_vs_classpath() throws IOException, InterruptedExc
 		"[reading    java/lang/System.class]\n" +
 		"[reading    java/io/PrintStream.class]\n" +
 		"[reading    X.class]\n" +
-		"[reading    java/lang/Throwable.class]\n" +
 		"[writing    Y.class - #1]\n" +
 		"[completed  ---OUTPUT_DIR_PLACEHOLDER---/Y.java - #1/1]\n" +
 		"[1 unit compiled]\n" +
@@ -8427,7 +8427,6 @@ public void test230_sourcepath_vs_classpath() throws IOException, InterruptedExc
 			"[reading    java/lang/System.class]\n" +
 			"[reading    java/io/PrintStream.class]\n" +
 			"[parsing    ---OUTPUT_DIR_PLACEHOLDER---/src2/X.java - #2/2]\n" +
-			"[reading    java/lang/Throwable.class]\n" +
 			"[writing    Y.class - #1]\n" +
 			"[completed  ---OUTPUT_DIR_PLACEHOLDER---/Y.java - #1/2]\n" +
 			"[analyzing  ---OUTPUT_DIR_PLACEHOLDER---/src2/X.java - #2/2]\n" +
@@ -10011,11 +10010,8 @@ public void test275_jar_ref_in_jar(){
 }
 private boolean analyzeManifestContents(ManifestAnalyzer manifestAnalyzer,
 		String string) throws IOException {
-	InputStream stream = new ByteArrayInputStream(string.getBytes());
-	try {
+	try (InputStream stream = new ByteArrayInputStream(string.getBytes())) {
 		return manifestAnalyzer.analyzeManifestContents(stream);
-	} finally {
-		stream.close();
 	}
 }
 // https://bugs.eclipse.org/bugs/show_bug.cgi?id=97332 - jars pointed by jars
@@ -13522,5 +13518,34 @@ public void testGitHub1122(){
 		+ "2 problems (2 errors)\n"
 		+ "",
 		true);
+}
+// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/2434
+// Cannot read field "declaringClass" because "this.methodDeclaration.binding" is null
+public void testGH2434(){
+	this.runConformTest(
+		new String[] {
+				"X.java",
+				"public class X {\n"
+				+ "	static {\n"
+				+ "		String a = \"Blah\";\n"
+				+ "		if (a != null) {\n"
+				+ "				String c = a;\n"
+				+ "				if (c != null) {\n"
+				+ "					String[] bundles = new String [0];\n"
+				+ "					for (String bundle : bundles) {\n"
+				+ "						if (bundle == null)\n"
+				+ "							bundle = null;\n"
+				+ "					}\n"
+				+ "				}\n"
+				+ "		}\n"
+				+ "	}\n"
+				+ "}",
+		},
+        "\"" + OUTPUT_DIR +  File.separator + "X.java\""
+        + " -1.5 -g -preserveAllLocals"
+        + " -d \"" + OUTPUT_DIR + "\" -O -Xxxx -O -Jxyz -Xtyu -Jyu",
+		"",
+        "",
+        true);
 }
 }

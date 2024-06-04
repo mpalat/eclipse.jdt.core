@@ -570,7 +570,7 @@ public class ParameterizedGenericMethodBinding extends ParameterizedMethodBindin
 	    									? originalMethod.returnType // no substitution if original was static
 	    									: Scope.substitute(rawType, originalMethod.returnType));
 	    this.wasInferred = false; // not resulting from method invocation inferrence
-	    this.parameterNonNullness = originalMethod.parameterNonNullness;
+	    this.parameterFlowBits = originalMethod.parameterFlowBits;
 	    this.defaultNullness = originalMethod.defaultNullness;
 	}
 
@@ -626,7 +626,7 @@ public class ParameterizedGenericMethodBinding extends ParameterizedMethodBindin
 			}
 		}
 	    this.wasInferred = true;// resulting from method invocation inferrence
-	    this.parameterNonNullness = originalMethod.parameterNonNullness;
+	    this.parameterFlowBits = originalMethod.parameterFlowBits;
 	    this.defaultNullness = originalMethod.defaultNullness;
 	    // special case: @NonNull for a parameter that is inferred to 'null' is encoded the old way
 	    // because we cannot (and don't want to) add type annotations to NullTypeBinding.
@@ -635,9 +635,9 @@ public class ParameterizedGenericMethodBinding extends ParameterizedMethodBindin
 	    	if (this.parameters[i] == TypeBinding.NULL) {
 	    		long nullBits = originalMethod.parameters[i].tagBits & TagBits.AnnotationNullMASK;
 	    		if (nullBits == TagBits.AnnotationNonNull) {
-	    			if (this.parameterNonNullness == null)
-	    				this.parameterNonNullness = new Boolean[len];
-	    			this.parameterNonNullness[i] = Boolean.TRUE;
+	    			if (this.parameterFlowBits == null)
+	    				this.parameterFlowBits = new byte[len];
+	    			this.parameterFlowBits[i] |= PARAM_NONNULL;
 	    		}
 	    	}
 	    }
@@ -733,8 +733,8 @@ public class ParameterizedGenericMethodBinding extends ParameterizedMethodBindin
 					if (inferenceContext.status == InferenceContext.FAILED) return null; // impossible substitution
 				}
 			}
-			for (int j = 0, max = originalVariable.superInterfaces.length; j < max; j++) {
-				TypeBinding substitutedBound = Scope.substitute(this, originalVariable.superInterfaces[j]);
+			for (ReferenceBinding superInterface : originalVariable.superInterfaces) {
+				TypeBinding substitutedBound = Scope.substitute(this, superInterface);
 				argument.collectSubstitutes(scope, substitutedBound, inferenceContext, TypeConstants.CONSTRAINT_SUPER);
 				if (inferenceContext.status == InferenceContext.FAILED) return null; // impossible substitution
 				// JLS 15.12.2.8 claims reverse inference shouldn't occur, however it improves inference

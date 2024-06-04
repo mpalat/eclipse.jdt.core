@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2015 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -121,7 +121,7 @@ public class ThisReference extends Reference {
 	}
 
 	@Override
-	public StringBuffer printExpression(int indent, StringBuffer output){
+	public StringBuilder printExpression(int indent, StringBuilder output){
 
 		if (isImplicitThis()) return output;
 		return output.append("this"); //$NON-NLS-1$
@@ -131,6 +131,9 @@ public class ThisReference extends Reference {
 	public TypeBinding resolveType(BlockScope scope) {
 
 		this.constant = Constant.NotAConstant;
+
+		if (this.inPreConstructorContext && !isImplicitThis())
+			scope.problemReporter().errorExpressionInPreConstructorContext(this);
 
 		ReferenceBinding enclosingReceiverType = scope.enclosingReceiverType();
 		if (!isImplicitThis() &&!checkAccess(scope, enclosingReceiverType)) {

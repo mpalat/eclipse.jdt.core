@@ -109,15 +109,16 @@ public FlowInfo analyseCode(BlockScope currentScope, FlowContext flowContext, Fl
 				&& this.resolvedType instanceof ReferenceBinding
 				&& ((ReferenceBinding)this.resolvedType).hasTypeBit(TypeIds.BitWrapperCloseable);
 		for (int i = 0, count = this.arguments.length; i < count; i++) {
+			Expression argument = this.arguments[i];
 			flowInfo =
-				this.arguments[i]
+				argument
 					.analyseCode(currentScope, flowContext, flowInfo)
 					.unconditionalInits();
 			// if argument is an AutoCloseable insert info that it *may* be closed (by the target method, i.e.)
 			if (analyseResources && !hasResourceWrapperType) { // allocation of wrapped closeables is analyzed specially
-				flowInfo = FakedTrackingVariable.markPassedToOutside(currentScope, this.arguments[i], flowInfo, flowContext, false);
+				flowInfo = handleResourcePassedToInvocation(currentScope, this.binding, argument, i, flowContext, flowInfo);
 			}
-			this.arguments[i].checkNPEbyUnboxing(currentScope, flowContext, flowInfo);
+			argument.checkNPEbyUnboxing(currentScope, flowContext, flowInfo);
 		}
 		analyseArguments(currentScope, flowContext, flowInfo, this.binding, this.arguments);
 	}
@@ -139,7 +140,7 @@ public FlowInfo analyseCode(BlockScope currentScope, FlowContext flowContext, Fl
 
 	// after having analysed exceptions above start tracking newly allocated resource:
 	if (currentScope.compilerOptions().analyseResourceLeaks && FakedTrackingVariable.isAnyCloseable(this.resolvedType))
-		FakedTrackingVariable.analyseCloseableAllocation(currentScope, flowInfo, this);
+		FakedTrackingVariable.analyseCloseableAllocation(currentScope, flowInfo, flowContext, this);
 
 	ReferenceBinding declaringClass = this.binding.declaringClass;
 	MethodScope methodScope = currentScope.methodScope();
@@ -166,8 +167,7 @@ public void checkCapturedLocalInitializationIfNecessary(ReferenceBinding checked
 		NestedTypeBinding nestedType = (NestedTypeBinding) checkedType;
 		SyntheticArgumentBinding[] syntheticArguments = nestedType.syntheticOuterLocalVariables();
 		if (syntheticArguments != null)
-			for (int i = 0, count = syntheticArguments.length; i < count; i++){
-				SyntheticArgumentBinding syntheticArgument = syntheticArguments[i];
+			for (SyntheticArgumentBinding syntheticArgument : syntheticArguments) {
 				LocalVariableBinding targetLocal;
 				if ((targetLocal = syntheticArgument.actualOuterLocalVariable) == null) continue;
 				if (targetLocal.declaration != null && !flowInfo.isDefinitelyAssigned(targetLocal)){
@@ -318,7 +318,7 @@ public void manageSyntheticAccessIfNecessary(BlockScope currentScope, FlowInfo f
 }
 
 @Override
-public StringBuffer printExpression(int indent, StringBuffer output) {
+public StringBuilder printExpression(int indent, StringBuilder output) {
 	if (this.type != null) { // type null for enum constant initializations
 		output.append("new "); //$NON-NLS-1$
 	}
@@ -402,8 +402,8 @@ public TypeBinding resolveType(BlockScope scope) {
 			}
 			if (this.argumentsHaveErrors) {
 				if (this.arguments != null) { // still attempt to resolve arguments
-					for (int i = 0, max = this.arguments.length; i < max; i++) {
-						this.arguments[i].resolveType(scope);
+					for (Expression argument : this.arguments) {
+						argument.resolveType(scope);
 					}
 				}
 				return null;
@@ -528,14 +528,33 @@ public TypeBinding resolveType(BlockScope scope) {
 				for (int i = 0; i < this.typeArguments.length; i++)
 					this.typeArguments[i].checkNullConstraints(scope, (ParameterizedGenericMethodBinding) this.binding, typeVariables, i);
 			}
-			this.resolvedType = scope.environment().createAnnotatedType(this.resolvedType, new AnnotationBinding[] {scope.environment().getNonNullAnnotation()});
+			this.resolvedType = scope.environment().createNonNullAnnotatedType(this.resolvedType);
 		}
 	}
 	if (compilerOptions.sourceLevel >= ClassFileConstants.JDK1_8 &&
 			this.binding.getTypeAnnotations() != Binding.NO_ANNOTATIONS) {
 		this.resolvedType = scope.environment().createAnnotatedType(this.resolvedType, this.binding.getTypeAnnotations());
 	}
+	checkPreConstructorContext(scope);
 	return this.resolvedType;
+}
+
+protected void checkPreConstructorContext(BlockScope scope) {
+	if (this.inPreConstructorContext && this.type != null &&
+			this.type.resolvedType instanceof ReferenceBinding currentType
+			&& !(currentType.isStatic() || currentType.isInterface())) { // no enclosing instance
+		MethodScope ms = scope.methodScope();
+		MethodBinding method = ms != null ? ms.referenceMethodBinding() : null;
+		ReferenceBinding declaringClass = method != null ? method.declaringClass : null;
+		if (declaringClass != null) {
+			while ((currentType = currentType.enclosingType())!= null) {
+				if (TypeBinding.equalsEquals(declaringClass, currentType)) {
+					scope.problemReporter().errorExpressionInPreConstructorContext(this);
+					break;
+				}
+			}
+		}
+	}
 }
 
 /**
@@ -662,6 +681,8 @@ public TypeBinding[] inferElidedTypes(ParameterizedTypeBinding parameterizedType
 }
 
 public void checkTypeArgumentRedundancy(ParameterizedTypeBinding allocationType, final BlockScope scope) {
+	if (scope.enclosingClassScope().resolvingPolyExpressionArguments) // express arguments may end up influencing the target type
+		return;                                                       // so, conservatively shut off diagnostic.
 	if ((scope.problemReporter().computeSeverity(IProblem.RedundantSpecificationOfTypeArguments) == ProblemSeverities.Ignore) || scope.compilerOptions().sourceLevel < ClassFileConstants.JDK1_7) return;
 	if (allocationType.arguments == null) return;  // raw binding
 	if (this.genericTypeArguments != null) return; // diamond can't occur with explicit type args for constructor
@@ -726,16 +747,16 @@ public void setFieldIndex(int i) {
 public void traverse(ASTVisitor visitor, BlockScope scope) {
 	if (visitor.visit(this, scope)) {
 		if (this.typeArguments != null) {
-			for (int i = 0, typeArgumentsLength = this.typeArguments.length; i < typeArgumentsLength; i++) {
-				this.typeArguments[i].traverse(visitor, scope);
+			for (TypeReference typeArgument : this.typeArguments) {
+				typeArgument.traverse(visitor, scope);
 			}
 		}
 		if (this.type != null) { // enum constant scenario
 			this.type.traverse(visitor, scope);
 		}
 		if (this.arguments != null) {
-			for (int i = 0, argumentsLength = this.arguments.length; i < argumentsLength; i++)
-				this.arguments[i].traverse(visitor, scope);
+			for (Expression argument : this.arguments)
+				argument.traverse(visitor, scope);
 		}
 	}
 	visitor.endVisit(this, scope);

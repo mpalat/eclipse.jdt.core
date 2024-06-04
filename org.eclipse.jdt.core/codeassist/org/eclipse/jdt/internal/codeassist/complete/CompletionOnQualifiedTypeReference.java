@@ -95,7 +95,7 @@ public void setKind(int kind) {
 	this.kind = kind;
 }
 @Override
-public StringBuffer printExpression(int indent, StringBuffer output) {
+public StringBuilder printExpression(int indent, StringBuilder output) {
 	switch (this.kind) {
 		case K_CLASS :
 			output.append("<CompleteOnClass:");//$NON-NLS-1$
@@ -110,8 +110,8 @@ public StringBuffer printExpression(int indent, StringBuffer output) {
 			output.append("<CompleteOnType:");//$NON-NLS-1$
 			break;
 	}
-	for (int i = 0; i < this.tokens.length; i++) {
-		output.append(this.tokens[i]);
+	for (char[] token : this.tokens) {
+		output.append(token);
 		output.append('.');
 	}
 	output.append(this.completionIdentifier).append('>');

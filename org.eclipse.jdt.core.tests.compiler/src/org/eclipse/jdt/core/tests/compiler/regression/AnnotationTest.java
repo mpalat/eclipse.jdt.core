@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2021 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -65,6 +65,7 @@ import org.eclipse.jdt.internal.compiler.impl.IrritantSet;
 import org.eclipse.jdt.internal.compiler.lookup.AnnotationBinding;
 import org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
 import org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
+import org.junit.Assert;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class AnnotationTest extends AbstractComparableTest {
@@ -8952,7 +8953,7 @@ public void test265() {
 	Compiler compiler = new Compiler(nameEnvironment, errorHandlingPolicy, compilerOptions, requestor, problemFactory);
 	compiler.options.produceReferenceInfo = true;
 
-	String code = "@javax.xml.bind.annotation.XmlSchema(namespace = \"test\")\npackage testpack;\n";
+	String code = "@java.lang.SuppressWarnings(\"test\")\npackage testpack;\n";
 	ICompilationUnit source = new CompilationUnit(code.toCharArray(), "testpack/package-info.java", null);
 
 	// don't call compile as would be normally expected since that wipes out the lookup environment
@@ -8971,10 +8972,14 @@ public void test265() {
 		annotations = type.getAnnotations();
 	}
 	assertTrue ("Annotations missing on package-info interface", annotations != null && annotations.length == 1);
-	assertEquals("Wrong annotation on package-info interface ", "@XmlSchema(namespace = (String)\"test\")", annotations[0].toString());
+	assertEquals("Wrong annotation on package-info interface ", "@SuppressWarnings((String)\"test\")", annotations[0].toString());
 	nameEnvironment.cleanup();
-	if (requestor.hasErrors)
-		System.err.print(requestor.problemLog); // problem log empty if no problems
+	if (requestor.hasErrors) {
+		if (!requestor.problemLog.contains("The annotation @SuppressWarnings is disallowed for this location")
+			&& !requestor.problemLog.contains("annotations are only available if source level is 1.5 or greater")){
+			Assert.assertNull("problem", requestor.problemLog);
+		}
+	}
 	compiler = null;
 }
 //https://bugs.eclipse.org/bugs/show_bug.cgi?id=220311
@@ -12361,6 +12366,47 @@ public void testBugVisibility() {
 			"}",
 		},
 		"");
+}
+public void testIssue2400() {
+	if (this.complianceLevel < ClassFileConstants.JDK9) {
+		return;
+	}
+	Map customOptions = getCompilerOptions();
+	Object bkup = customOptions.get(CompilerOptions.OPTION_AnnotationBasedNullAnalysis);
+	customOptions.put(CompilerOptions.OPTION_AnnotationBasedNullAnalysis, CompilerOptions.ENABLED);
+	try {
+		runNegativeTest(
+			new String[] {
+				"TestClass.java",
+				"package test;\n"
+				+ "@com.Missing\n"
+				+ "@java.lang.Deprecated\n"
+				+ "public class TestClass {\n"
+				+ "}",
+				"com.java",
+				"package test;\n"
+				+ "public class com {\n"
+				+ "	test.TestClass value;"
+				+ "}",
+			},
+			"----------\n" +
+			"1. ERROR in TestClass.java (at line 2)\n" +
+			"	@com.Missing\n" +
+			"	 ^^^^^^^^^^^\n" +
+			"com.Missing cannot be resolved to a type\n" +
+			"----------\n" +
+			"----------\n" +
+			"1. WARNING in com.java (at line 3)\n" +
+			"	test.TestClass value;}\n" +
+			"	     ^^^^^^^^^\n" +
+			"The type TestClass is deprecated\n" +
+			"----------\n",
+			null,
+			true,
+			customOptions);
+	} finally {
+		customOptions.put(CompilerOptions.OPTION_AnnotationBasedNullAnalysis, bkup);
+	}
 }
 
 }

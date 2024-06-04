@@ -128,7 +128,7 @@ public class CommentsPreparator extends ASTVisitor {
 	private int noFormatOpenTagStartIndex = -1;
 	private int formatCodeOpenTagEndIndex = -1;
 	private int lastFormatCodeClosingTagIndex = -1;
-	private final ArrayList<Integer> commonAttributeAnnotations = new ArrayList<Integer>();
+	private final ArrayList<Integer> commonAttributeAnnotations = new ArrayList<>();
 	private DefaultCodeFormatter preTagCodeFormatter;
 	private DefaultCodeFormatter snippetCodeFormatter;
 
@@ -204,10 +204,14 @@ public class CommentsPreparator extends ASTVisitor {
 
 		List<Token> structure = tokenizeLineComment(commentToken);
 		if (isContinuation) {
-			Token first = structure.get(0);
-			first.breakBefore();
-			first.setWrapPolicy(
-					new WrapPolicy(WrapMode.WHERE_NECESSARY, commentIndex - 1, this.lastLineCommentPosition));
+			if (this.options.join_line_comments) {
+				structure.remove(0);
+			} else {
+				Token first = structure.get(0);
+				first.breakBefore();
+				first.setWrapPolicy(
+						new WrapPolicy(WrapMode.WHERE_NECESSARY, commentIndex - 1, this.lastLineCommentPosition));
+			}
 
 			// merge previous and current line comment
 			Token previous = this.lastLineComment;
@@ -373,8 +377,7 @@ public class CommentsPreparator extends ASTVisitor {
 			fragments = Arrays.asList(commentToken);
 		}
 		ArrayList<Token> result = new ArrayList<>();
-		for (int i = 0; i < fragments.size(); i++) {
-			Token token = fragments.get(i);
+		for (Token token : fragments) {
 			if (token.hasNLSTag()) {
 				if (ScannerHelper.isWhitespace(this.tm.charAt(token.originalStart - 1)))
 					token.spaceBefore();

@@ -13,8 +13,6 @@
  *******************************************************************************/
 package org.eclipse.jdt.core.tests.dom;
 
-import static org.junit.Assert.assertNotEquals;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +34,6 @@ import org.eclipse.jdt.core.dom.PatternInstanceofExpression;
 import org.eclipse.jdt.core.dom.RecordPattern;
 import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
-import org.eclipse.jdt.core.dom.Statement;
 import org.eclipse.jdt.core.dom.SwitchCase;
 import org.eclipse.jdt.core.dom.SwitchExpression;
 import org.eclipse.jdt.core.dom.SwitchStatement;
@@ -56,7 +53,7 @@ public class ASTConverter_RecordPattern_Test extends ConverterTestSetup {
 		super.setUpSuite();
 		this.ast = AST.newAST(getASTLatest(), false);
 		this.currentProject = getJavaProject("Converter_19");
-		if (this.ast.apiLevel() == AST.JLS21) {
+		if (this.ast.apiLevel() >= AST.JLS21) {
 			this.currentProject.setOption(JavaCore.COMPILER_COMPLIANCE, JavaCore.VERSION_21);
 			this.currentProject.setOption(JavaCore.COMPILER_SOURCE, JavaCore.VERSION_21);
 			this.currentProject.setOption(JavaCore.COMPILER_CODEGEN_TARGET_PLATFORM, JavaCore.VERSION_21);
@@ -137,16 +134,12 @@ public class ASTConverter_RecordPattern_Test extends ConverterTestSetup {
 		assertEquals("Type Pattern", typePattern.getNodeType(), ASTNode.TYPE_PATTERN);
 		SingleVariableDeclaration patternVariable = ((TypePattern)typePattern).getPatternVariable();
 		assertEquals("Type Pattern Integer", "Integer", patternVariable.getType().toString());
-		SingleVariableDeclaration patternVariable2 = ((TypePattern)typePattern).patternVariables().get(0);
-		assertEquals(patternVariable, patternVariable2);
 
 		SwitchCase caseString = (SwitchCase) statements.get(2);
 		typePattern = (Expression)caseString.expressions().get(0);
 		assertEquals("Type Pattern", typePattern.getNodeType(), ASTNode.TYPE_PATTERN);
 		patternVariable = ((TypePattern)typePattern).getPatternVariable();
 		assertEquals("Type Pattern Integer", "String", patternVariable.getType().toString());
-		patternVariable2 = ((TypePattern)typePattern).patternVariables().get(0);
-		assertEquals(patternVariable, patternVariable2);
 
 		SwitchCase caseDefault = (SwitchCase) statements.get(4);
 		assertTrue("Default case", caseDefault.isDefault());
@@ -186,8 +179,6 @@ public class ASTConverter_RecordPattern_Test extends ConverterTestSetup {
 		Pattern pattern = ((GuardedPattern)guardedPattern).getPattern();
 		SingleVariableDeclaration patternVariable = ((TypePattern)pattern).getPatternVariable();
 		assertEquals("Type Pattern Integer", "Integer", patternVariable.getType().toString());
-		SingleVariableDeclaration patternVariable2 = ((TypePattern)pattern).patternVariables().get(0);
-		assertEquals(patternVariable, patternVariable2);
 		Expression expression = ((GuardedPattern)guardedPattern).getExpression();
 		Expression expression2 = ((ParenthesizedExpression)expression).getExpression();
 		assertEquals("Infix expression", "i.intValue() > 10", expression2.toString());
@@ -199,8 +190,6 @@ public class ASTConverter_RecordPattern_Test extends ConverterTestSetup {
 		pattern = ((GuardedPattern)guardedPattern).getPattern();
 		patternVariable = ((TypePattern)pattern).getPatternVariable();
 		assertEquals("Type Pattern String", "String", patternVariable.getType().toString());
-		patternVariable2 = ((TypePattern)pattern).patternVariables().get(0);
-		assertEquals(patternVariable, patternVariable2);
 		expression = ((GuardedPattern)guardedPattern).getExpression();
 		assertEquals("Infix expression", "s.equals(\"ff\")",expression.toString());
 
@@ -570,39 +559,5 @@ public class ASTConverter_RecordPattern_Test extends ConverterTestSetup {
 		assertEquals("incorrect type", ASTNode.GUARDED_PATTERN, ((Expression)caseStmt.expressions().get(0)).getNodeType());
 		GuardedPattern guardedPattern = (GuardedPattern)caseStmt.expressions().get(0);
 		assertEquals("There should be 1 Record Pattern", ASTNode.RECORD_PATTERN , guardedPattern.getPattern().getNodeType());
-	}
-	public void testIssue882_1() throws Exception {
-		if (!isJRE21) {
-			System.err.println("Test "+getName()+" requires a JRE 21");
-			return;
-		}
-		String contents =  "import java.util.List;\n"
-				+ "public class X {\n"
-				+ "	public static void foo(List<R> rList) {\n"
-				+ "		for(R(Integer abcs):rList) {\n"
-				+ "			System.out.println(abcs);\n"
-				+ "		}\n"
-				+ "	}\n"
-				+ "	record R(int i) {}\n"
-				+ "}";
-
-		this.workingCopy = getWorkingCopy("/Converter_19/src/X.java", true/*resolve*/);
-		ASTNode node = buildAST(
-				contents,
-				this.workingCopy,
-				false);
-		assertEquals("Not a compilation unit", ASTNode.COMPILATION_UNIT, node.getNodeType());
-		CompilationUnit compilationUnit = (CompilationUnit) node;
-		node = ((AbstractTypeDeclaration)compilationUnit.types().get(0));
-		assertEquals("Not a Type Declaration", ASTNode.TYPE_DECLARATION, node.getNodeType());
-		TypeDeclaration type = (TypeDeclaration)node;
-		MethodDeclaration[] methods = type.getMethods();
-		assertEquals("Method size incorrect", 1, methods.length);
-		MethodDeclaration printMethod = methods[0];
-		assertEquals("Method name is not foo", "foo", printMethod.getName().toString());
-		List<ASTNode> statements = printMethod.getBody().statements();
-		assertEquals("statement count incorrect", 1, statements.size());
-		Statement stmt = (Statement) statements.get(0);
-		assertNotEquals("Should not be an empty statement", ASTNode.EMPTY_STATEMENT, stmt.getNodeType());
 	}
 }

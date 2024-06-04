@@ -66,7 +66,6 @@ public class TestCase extends PerformanceTestCase {
 
 	/**
 	 * Expected tests order while building tests list for test suites.
-	 * 	@see #buildTestsList(Class, int, long)
 	 * <br>
 	 * User may use following different values:
 	 * 	<ul>
@@ -79,6 +78,7 @@ public class TestCase extends PerformanceTestCase {
 	 *			<li>other values: random order using given <code>long</code> value as seed</li>
 	 * 	</ul>
 	 * This value is initialized with <code>"ordering"</code> system property.
+	 * @see #buildTestsList(Class, int, long)
 	 */
 	public static final long ORDERING;
 	static {
@@ -104,7 +104,7 @@ public class TestCase extends PerformanceTestCase {
 						try {
 							// https://bugs.eclipse.org/bugs/show_bug.cgi?id=384531
 							// compiler.version is a timestamp since the the above fix (of the format: v20120725-181921)
-							StringBuffer buffer = new StringBuffer();
+							StringBuilder buffer = new StringBuilder();
 							for (int i = 0; i < version.length(); i++) {
 								if (Character.isDigit(version.charAt(i))) {
 									buffer.append(version.charAt(i));
@@ -249,11 +249,11 @@ public static void assertStringEquals(String message, String expected, String ac
 		return;
 	if (expected != null && expected.equals(actual))
 		return;
-	final StringBuffer formatted;
+	final StringBuilder formatted;
 	if (message != null) {
-		formatted = new StringBuffer(message).append('.');
+		formatted = new StringBuilder(message).append('.');
 	} else {
-		formatted = new StringBuffer();
+		formatted = new StringBuilder();
 	}
 	if (showLineSeparators) {
 		expected = showLineSeparators(expected);
@@ -366,9 +366,9 @@ private void printAssertionFailure(AssertionFailedError afe) {
  * Build a list of methods to run for a test suite.
  * There's no recursion in given class hierarchy, methods are only
  * public method starting with "test" of it.
- * <p></p>
+ * <p>
  *  Note that this list may be reduced using 2 different mechanism:
- * <p></p>
+ * <p>>
  * 1) TESTS* static variables:
  * <ul>
  * <li>{@link #TESTS_PREFIX}: only methods starting with this prefix (after "test" of course)
@@ -390,7 +390,7 @@ private void printAssertionFailure(AssertionFailedError afe) {
  * 	will put all methods after <code>test010()</code> in the test suite.
  * </li>
  * </ul>
- * <p></p>
+ * <p>
  * 2) testONLY_ methods<br>
  * As static variables needs a static initializer usually put at the beginning of the test suite,
  * it could be a little be boring while adding tests at the end of the file to modify this static initializer.
@@ -960,7 +960,7 @@ static public void assertSame(String message, int expected, int actual) {
 	failNotSame(message, expected, actual);
 }
 static public void failNotSame(String message, int expected, int actual) {
-	StringBuffer formatted= new StringBuffer();
+	StringBuilder formatted= new StringBuilder();
 	if (message != null) {
 		formatted.append(message).append(' ');
 	}
