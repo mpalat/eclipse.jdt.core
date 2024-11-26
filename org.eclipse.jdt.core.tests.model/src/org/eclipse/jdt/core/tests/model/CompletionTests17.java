@@ -12,11 +12,10 @@
  *******************************************************************************/
 package org.eclipse.jdt.core.tests.model;
 
+import junit.framework.Test;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
-
-import junit.framework.Test;
 
 public class CompletionTests17 extends AbstractJavaModelCompletionTests {
 
@@ -25,7 +24,6 @@ public class CompletionTests17 extends AbstractJavaModelCompletionTests {
 	private static int nonVoid_Rel = R_DEFAULT+R_RESOLVED+ R_CASE+ R_INTERESTING +R_NON_STATIC+R_NON_RESTRICTED;
 	private static int unqualified_Rel = R_DEFAULT+R_RESOLVED+ R_CASE+ R_INTERESTING +R_UNQUALIFIED+R_NON_RESTRICTED;
 	private static int unqualifiedExact_Rel = R_DEFAULT+R_RESOLVED+R_EXACT_EXPECTED_TYPE+ R_CASE+ R_INTERESTING +R_UNQUALIFIED+R_NON_RESTRICTED;
-	private static int keyword_Rel= R_DEFAULT + R_RESOLVED + R_INTERESTING + R_CASE + R_NON_RESTRICTED;
 	static {
 		 // TESTS_NAMES = new String[]{"test034"};
 	}
@@ -414,245 +412,7 @@ public class CompletionTests17 extends AbstractJavaModelCompletionTests {
 				requestor.getResults());
 
 	}
-	public void test011() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case     : System.out.println(\"Integer:\" + i);break;\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "case ";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("default[KEYWORD]{default, null, null, default, null, "+keyword_Rel+"}\n"
-				+ "null[KEYWORD]{null, null, null, null, null, "+keyword_Rel+"}",
-				requestor.getResults());
 
-	}
-	public void test012() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case nu    : System.out.println(\"Integer:\" + i);break;\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "case nu";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("null[KEYWORD]{null, null, null, null, null, "+keyword_Rel+"}",
-				requestor.getResults());
-
-	}
-	public void test013() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case de    : System.out.println(\"Integer:\" + i);break;\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "case de";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("default[KEYWORD]{default, null, null, default, null, "+keyword_Rel+"}",
-				requestor.getResults());
-
-	}
-	public void test014() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case null    : System.out.println(\"Integer:\" + i);break;\n" +
-						"	/*here*/case nu    : System.out.println(\"Integer:\" + i);break;\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "/*here*/case nu";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("",
-				requestor.getResults());
-
-	}
-	public void test015() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case default    : System.out.println(\"Integer:\" + i);break;\n" +
-						"	/*here*/case de    : System.out.println(\"Integer:\" + i);break;\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "/*here*/case de";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("",
-				requestor.getResults());
-
-	}
-	public void test016() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case nu    -> System.out.println(\"Integer:\" + i);\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "case nu";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("null[KEYWORD]{null, null, null, null, null, "+keyword_Rel+"}",
-				requestor.getResults());
-
-	}
-	public void test017() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case de    -> System.out.println(\"Integer:\" + i);\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "case de";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("default[KEYWORD]{default, null, null, default, null, "+keyword_Rel+"}",
-				requestor.getResults());
-
-	}
-	public void test018() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case Integer i    -> System.out.println(\"Integer:\"  +i);\n" +
-						"	case de    -> System.out.println(\"Integer:\" + i);\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "case de";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("default[KEYWORD]{default, null, null, default, null, "+keyword_Rel+"}",
-				requestor.getResults());
-
-	}
-	public void test019() throws JavaModelException {
-		this.workingCopies = new ICompilationUnit[1];
-		this.workingCopies[0] = getWorkingCopy(
-				"/Completion/src/X.java",
-				"public class X {\n" +
-						"public static void main(String[] args) {\n" +
-						"foo(Integer.valueOf(5));\n" +
-						"foo(new Object());\n" +
-						"}\n" +
-						"private static void foo(Object o) {\n" +
-						" switch (o) {\n" +
-						"	case Integer i    -> System.out.println(\"Integer:\"  +i);\n" +
-						"	case n    -> System.out.println(\"Integer:\" + i);\n" +
-						" 	}\n" +
-						"}\n" +
-						"}\n"
-				);
-		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
-		requestor.allowAllRequiredProposals();
-		String str = this.workingCopies[0].getSource();
-		String completeBehind = "case n";
-		int cursorLocation = str.indexOf(completeBehind) + completeBehind.length();
-		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
-		assertResults("null[KEYWORD]{null, null, null, null, null, "+keyword_Rel+"}",
-				requestor.getResults());
-
-	}
 	// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/1100
 	// ContentAssist / CompletionScanner running into deadlock
 	public void testGH1100() throws JavaModelException {
@@ -738,6 +498,30 @@ public class CompletionTests17 extends AbstractJavaModelCompletionTests {
 		this.workingCopies[0].codeComplete(cursorLocation, requestor, this.wcOwner);
 		assertResults("""
 				permits[RESTRICTED_IDENTIFIER]{permits, null, null, permits, null, 49}\
+					""", requestor.getResults());
+	}
+	// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/2540
+	// Completion fails within the body of a permitted class
+	public void testGH2540() throws JavaModelException {
+		this.workingCopies = new ICompilationUnit[2];
+		this.workingCopies[0] = getWorkingCopy("/Completion/src/Storage.java", """
+				public sealed class Storage permits SqlStorage {
+				}\
+				""");
+		this.workingCopies[1] = getWorkingCopy("/Completion/src/SqlStorage.java", """
+				public final class SqlStorage extends Storage {
+				/*here*/Sq
+				}\
+				""");
+		CompletionTestsRequestor2 requestor = new CompletionTestsRequestor2(true);
+		requestor.allowAllRequiredProposals();
+		String str = this.workingCopies[1].getSource();
+		String completeBehind = "/*here*/Sq";
+		int cursorLocation = str.lastIndexOf(completeBehind) + completeBehind.length();
+		this.workingCopies[1].codeComplete(cursorLocation, requestor, this.wcOwner);
+		assertResults("""
+				Sq[POTENTIAL_METHOD_DECLARATION]{Sq, LSqlStorage;, ()V, Sq, null, 39}
+				SqlStorage[TYPE_REF]{SqlStorage, , LSqlStorage;, null, null, 52}\
 					""", requestor.getResults());
 	}
 }

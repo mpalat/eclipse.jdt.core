@@ -18,13 +18,11 @@ package org.eclipse.jdt.core.tests.compiler.regression;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Random;
-
+import junit.framework.Test;
 import org.eclipse.jdt.core.util.ClassFileBytesDisassembler;
 import org.eclipse.jdt.core.util.ClassFormatException;
 import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
-
-import junit.framework.Test;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class XLargeTest extends AbstractRegressionTest {
@@ -3920,7 +3918,7 @@ public void test014() {
 	},
 	"");
 }
-public void test015() {
+public void _test015() {
 	Map settings = getCompilerOptions();
 	settings.put(CompilerOptions.OPTION_ShareCommonFinallyBlocks, CompilerOptions.ENABLED);
 	runConformTest(

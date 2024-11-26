@@ -18,29 +18,23 @@ package org.eclipse.jdt.internal.core;
 
 import static org.eclipse.jdt.internal.core.JavaModelManager.trace;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
-
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.ParserConfigurationException;
 import org.eclipse.core.resources.IFile;
@@ -63,24 +57,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.content.IContentDescription;
 import org.eclipse.core.runtime.preferences.IEclipsePreferences;
 import org.eclipse.core.runtime.preferences.IScopeContext;
-import org.eclipse.jdt.core.IClasspathAttribute;
-import org.eclipse.jdt.core.IClasspathContainer;
-import org.eclipse.jdt.core.IClasspathEntry;
-import org.eclipse.jdt.core.ICompilationUnit;
-import org.eclipse.jdt.core.IJavaElement;
-import org.eclipse.jdt.core.IJavaModelMarker;
-import org.eclipse.jdt.core.IJavaModelStatus;
-import org.eclipse.jdt.core.IJavaModelStatusConstants;
-import org.eclipse.jdt.core.IJavaProject;
-import org.eclipse.jdt.core.IModuleDescription;
-import org.eclipse.jdt.core.IPackageFragment;
-import org.eclipse.jdt.core.IPackageFragmentRoot;
-import org.eclipse.jdt.core.IRegion;
-import org.eclipse.jdt.core.IType;
-import org.eclipse.jdt.core.ITypeHierarchy;
-import org.eclipse.jdt.core.JavaCore;
-import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.core.WorkingCopyOwner;
+import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.compiler.CategorizedProblem;
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.core.eval.IEvaluationContext;
@@ -710,7 +687,7 @@ public class JavaProject
 
 		String rootID = ((ClasspathEntry)resolvedEntry).rootID();
 		if (rootIDs.contains(rootID)) return;
-		if(excludeTestCode && ((ClasspathEntry)resolvedEntry).isTest()) {
+		if(excludeTestCode && resolvedEntry.isTest()) {
 			return;
 		}
 
@@ -878,10 +855,10 @@ public class JavaProject
 
 	/** Helper for computing the transitive closure of a set of modules. */
 	private static class ModuleLookup {
-		File jrtFile;
-		Map<String, JrtPackageFragmentRoot> modNames2Roots = new HashMap<>();
-		Map<String, IModule> modules = new HashMap<>();
-		Set<IModule> resultModuleSet = new HashSet<>();
+		private final File jrtFile;
+		private final Map<String, JrtPackageFragmentRoot> modNames2Roots = new HashMap<>();
+		private final Map<String, IModule> modules = new HashMap<>();
+		private final Set<IModule> resultModuleSet = new HashSet<>();
 
 		public ModuleLookup(File jrtFile) {
 			this.jrtFile = jrtFile;
@@ -1801,15 +1778,14 @@ public class JavaProject
 	public IClasspathEntry getClasspathEntryFor(IPath path) throws JavaModelException {
 		getResolvedClasspath(); // force resolution
 		PerProjectInfo perProjectInfo = getPerProjectInfo();
-		if (perProjectInfo == null)
+		if (perProjectInfo == null) {
 			return null;
-		Map rootPathToResolvedEntries = perProjectInfo.rootPathToResolvedEntries;
-		if (rootPathToResolvedEntries == null)
-			return null;
-		IClasspathEntry classpathEntry = (IClasspathEntry) rootPathToResolvedEntries.get(path);
+		}
+		Map<IPath, IClasspathEntry> rootPathToResolvedEntries = perProjectInfo.getRootPathToResolvedEntries();
+		IClasspathEntry classpathEntry = rootPathToResolvedEntries.get(path);
 		if (classpathEntry == null) {
 			path = getProject().getWorkspace().getRoot().getLocation().append(path);
-			classpathEntry = (IClasspathEntry) rootPathToResolvedEntries.get(path);
+			classpathEntry = rootPathToResolvedEntries.get(path);
 		}
 		return classpathEntry;
 	}
@@ -3552,26 +3528,19 @@ public class JavaProject
 	 * @see JavaProject#getSharedProperty(String key)
 	 */
 	public void setSharedProperty(String key, String value) throws CoreException {
-
 		IFile rscFile = this.project.getFile(key);
-		byte[] bytes = null;
-		try {
-			bytes = value.getBytes(org.eclipse.jdt.internal.compiler.util.Util.UTF_8); // .classpath always encoded with UTF-8
-		} catch (UnsupportedEncodingException e) {
-			Util.log(e, "Could not write .classpath with UTF-8 encoding "); //$NON-NLS-1$
-			// fallback to default
-			bytes = value.getBytes();
-		}
-		InputStream inputStream = new ByteArrayInputStream(bytes);
+		byte[] bytes = value.getBytes(StandardCharsets.UTF_8); // .classpath always encoded with UTF-8
 		// update the resource content
-		if (rscFile.exists()) {
-			if (rscFile.isReadOnly()) {
+		try {
+			rscFile.write(bytes, true, false, false, null);
+		} catch (CoreException e) {
+			if (rscFile.exists() && rscFile.isReadOnly()) {
 				// provide opportunity to checkout read-only .classpath file (23984)
-				ResourcesPlugin.getWorkspace().validateEdit(new IFile[]{rscFile}, IWorkspace.VALIDATE_PROMPT);
+				ResourcesPlugin.getWorkspace().validateEdit(new IFile[] { rscFile }, IWorkspace.VALIDATE_PROMPT);
+				rscFile.write(bytes, true, false, false, null);
+			} else {
+				throw e;
 			}
-			rscFile.setContents(inputStream, IResource.FORCE, null);
-		} else {
-			rscFile.create(inputStream, IResource.FORCE, null);
 		}
 	}
 

@@ -37,7 +37,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
-
 import javax.annotation.processing.Processor;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticListener;
@@ -46,7 +45,6 @@ import javax.tools.JavaFileManager.Location;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.StandardLocation;
-
 import org.eclipse.jdt.core.compiler.CategorizedProblem;
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.core.compiler.CompilationProgress;
@@ -540,7 +538,7 @@ public class EclipseCompilerImpl extends Main {
 										EclipseFileManager efm = (EclipseFileManager) standardJavaFileManager;
 										@SuppressWarnings("resource") // XXX EclipseFileManager should close jrtfs but it looks like standardJavaFileManager is never closed
 										// Was leaking new JrtFileSystem(classpathJrt.file):
-										JrtFileSystem jrtfs = efm.getJrtFileSystem(classpathJrt.file);
+										JrtFileSystem jrtfs = efm.getJrtFileSystem(classpathJrt.file); // XXX use classpathJrt.jrtFileSystem??
 										efm.locationHandler.newSystemLocation(StandardLocation.SYSTEM_MODULES, jrtfs);
 									} catch (IOException e) {
 										String error = "Failed to create JRTFS from " + classpathJrt.file; //$NON-NLS-1$

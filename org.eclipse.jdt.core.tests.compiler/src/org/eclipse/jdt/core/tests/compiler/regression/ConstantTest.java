@@ -15,25 +15,14 @@ package org.eclipse.jdt.core.tests.compiler.regression;
 
 import java.io.File;
 import java.util.regex.Pattern;
-
 import junit.framework.Test;
-
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.tests.util.Util;
 import org.eclipse.jdt.core.util.ClassFileBytesDisassembler;
 import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.eclipse.jdt.internal.compiler.env.ClassSignature;
 import org.eclipse.jdt.internal.compiler.env.EnumConstantSignature;
-import org.eclipse.jdt.internal.compiler.impl.BooleanConstant;
-import org.eclipse.jdt.internal.compiler.impl.ByteConstant;
-import org.eclipse.jdt.internal.compiler.impl.CharConstant;
-import org.eclipse.jdt.internal.compiler.impl.Constant;
-import org.eclipse.jdt.internal.compiler.impl.DoubleConstant;
-import org.eclipse.jdt.internal.compiler.impl.FloatConstant;
-import org.eclipse.jdt.internal.compiler.impl.IntConstant;
-import org.eclipse.jdt.internal.compiler.impl.LongConstant;
-import org.eclipse.jdt.internal.compiler.impl.ShortConstant;
-import org.eclipse.jdt.internal.compiler.impl.StringConstant;
+import org.eclipse.jdt.internal.compiler.impl.*;
 import org.eclipse.jdt.internal.compiler.problem.ShouldNotImplement;
 
 @SuppressWarnings({ "rawtypes" })
@@ -1326,12 +1315,7 @@ private void verifyValues(
 	// intValue()
 	byteConstant.intValue();
 	charConstant.intValue();
-	try {
-		booleanConstant.intValue();
-		assertTrue(false);
-	} catch(ShouldNotImplement e) {
-		// ignore
-	}
+	booleanConstant.intValue();
 	doubleConstant.intValue();
 	floatConstant.intValue();
 	intConstant.intValue();
@@ -1594,12 +1578,7 @@ public void testBug566332_04() {
 				+ "} ",
 			},
 			"----------\n" +
-			"1. WARNING in X.java (at line 4)\n" +
-			"	String caseStr =  true ? \"abc\" : \"def\";\n" +
-			"	                                 ^^^^^\n" +
-			"Dead code\n" +
-			"----------\n" +
-			"2. ERROR in X.java (at line 6)\n" +
+			"1. ERROR in X.java (at line 6)\n" +
 			"	case caseStr: System.out.println(\"Pass\");\n" +
 			"	     ^^^^^^^\n" +
 			"case expressions must be constant expressions\n" +

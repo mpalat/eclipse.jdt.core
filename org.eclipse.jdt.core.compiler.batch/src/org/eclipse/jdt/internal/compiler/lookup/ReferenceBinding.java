@@ -52,16 +52,18 @@
  *******************************************************************************/
 package org.eclipse.jdt.internal.compiler.lookup;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.internal.compiler.ast.LambdaExpression;
 import org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
 import org.eclipse.jdt.internal.compiler.ast.NullAnnotationMatching;
 import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
-import org.eclipse.jdt.internal.compiler.impl.JavaFeature;
 import org.eclipse.jdt.internal.compiler.impl.ReferenceContext;
 import org.eclipse.jdt.internal.compiler.util.SimpleLookupTable;
 
@@ -322,7 +324,7 @@ public boolean canBeSeenBy(PackageBinding invocationPackage) {
 public boolean canBeSeenBy(ReferenceBinding receiverType, ReferenceBinding invocationType) {
 	if (isPublic()) return true;
 
-	if (isStatic() && (receiverType.isRawType() || receiverType.isParameterizedType()))
+	if (isStatic())
 		receiverType = receiverType.actualType(); // outer generics are irrelevant
 
 	if (TypeBinding.equalsEquals(invocationType, this) && TypeBinding.equalsEquals(invocationType, receiverType)) return true;
@@ -1055,6 +1057,11 @@ public final ReferenceBinding enclosingTypeAt(int relativeDepth) {
 	return current;
 }
 
+@Override
+public ReferenceBinding actualType() {
+	return this;
+}
+
 public int enumConstantCount() {
 	int count = 0;
 	FieldBinding[] fields = fields();
@@ -1558,6 +1565,7 @@ public final boolean isNonSealed() {
 /**
  * Answer true if the receiver has sealed modifier
  */
+@Override
 public boolean isSealed() {
 	return (this.modifiers & ExtraCompilerModifiers.AccSealed) != 0;
 }
@@ -1599,7 +1607,7 @@ protected boolean isSubTypeOfRTL(TypeBinding other) {
 		return (lower != null && isSubtypeOf(lower, false));
 	}
 	if (other instanceof ReferenceBinding) {
-		TypeBinding[] intersecting = ((ReferenceBinding) other).getIntersectingTypes();
+		TypeBinding[] intersecting = other.getIntersectingTypes();
 		if (intersecting != null) {
 			for (TypeBinding binding : intersecting) {
 				if (!isSubtypeOf(binding, false))
@@ -1696,15 +1704,6 @@ public final boolean isOrEnclosedByPrivateType() {
  */
 public final boolean isProtected() {
 	return (this.modifiers & ClassFileConstants.AccProtected) != 0;
-}
-
-/**
- * Answer true if the receiver definition is in preconstructor context 
- * - true only in such cases for anonymous type - 
- * Java 22 - preview - JEP 447
- */
-public final boolean isInPreconstructorContext() {
-	return (this.extendedTagBits & ExtendedTagBits.IsInPreconstructorContext) != 0;
 }
 
 /**
@@ -2049,7 +2048,8 @@ public char[] sourceName() {
  * @return Upwards type projection of 'this', or null if downwards projection is undefined
 */
 @Override
-public ReferenceBinding upwardsProjection(Scope scope, TypeBinding[] mentionedTypeVariables) {
+public TypeBinding upwardsProjection(Scope scope, TypeBinding[] mentionedTypeVariables) {
+	// Note: return type remains as TypeBinding, because subclass CaptureBinding may return an ArrayBinding :(
 	return this;
 }
 
@@ -2060,7 +2060,8 @@ public ReferenceBinding upwardsProjection(Scope scope, TypeBinding[] mentionedTy
  * @return Downwards type projection of 'this', or null if downwards projection is undefined
 */
 @Override
-public ReferenceBinding downwardsProjection(Scope scope, TypeBinding[] mentionedTypeVariables) {
+public TypeBinding downwardsProjection(Scope scope, TypeBinding[] mentionedTypeVariables) {
+	// Note: return type remains as TypeBinding, because subclass CaptureBinding may return an ArrayBinding :(
 	return this;
 }
 
@@ -2100,11 +2101,6 @@ SimpleLookupTable storedAnnotations(boolean forceInitialize, boolean forceStore)
 @Override
 public ReferenceBinding superclass() {
 	return null;
-}
-
-@Override
-public ReferenceBinding[] permittedTypes() {
-	return Binding.NO_PERMITTEDTYPES;
 }
 
 @Override
@@ -2370,10 +2366,8 @@ public MethodBinding getSingleAbstractMethod(Scope scope, boolean replaceWildcar
 		return this.singleAbstractMethod[index];
 	} else {
 		this.singleAbstractMethod = new MethodBinding[2];
-		// Sec 9.8 of sealed preview - A functional interface is an interface that is not declared sealed...
-		if (JavaFeature.SEALED_CLASSES.isSupported(scope.compilerOptions())
-				&& this.isSealed())
-			return this.singleAbstractMethod[index] = samProblemBinding;
+		if (this.isSealed())
+			return this.singleAbstractMethod[index] = samProblemBinding; // JLS 9.8
 	}
 
 	if (this.compoundName != null)
@@ -2535,14 +2529,101 @@ public ModuleBinding module() {
 }
 
 public boolean hasEnclosingInstanceContext() {
-	if (isMemberType() && !isStatic())
-		return true;
-	if (isLocalType() && isStatic())
+	// This method intentionally disregards early construction contexts (JEP 482).
+	// Details of how each outer level is handled are coordinated in
+	// TypeDeclaration.manageEnclosingInstanceAccessIfNecessary().
+	if (isStatic())
 		return false;
+	if (isNestedType())
+		return true;
 	MethodBinding enclosingMethod = enclosingMethod();
 	if (enclosingMethod != null)
 		return !enclosingMethod.isStatic();
+	// FIXME: should we consider enclosing instances of superclass??
 	return false;
+}
+
+public List<ReferenceBinding> getAllEnumerableAvatars() {
+	if (!isSealed())
+		throw new UnsupportedOperationException("Operation valid only on sealed types!"); //$NON-NLS-1$
+
+	Set<ReferenceBinding> permSet = new HashSet<>(Arrays.asList(permittedTypes()));
+	if (isClass() && canBeInstantiated())
+		permSet.add(this);
+	Set<ReferenceBinding> oldSet = new HashSet<>(permSet);
+	do {
+		for (ReferenceBinding type : permSet) {
+			if (type.isSealed())
+				oldSet.addAll(Arrays.asList(type.permittedTypes()));
+		}
+		Set<ReferenceBinding> tmp = oldSet;
+		oldSet = permSet;
+		permSet = tmp;
+	} while (oldSet.size() != permSet.size());
+	return new ArrayList<>(permSet);
+}
+
+// 5.1.6.1 Allowed Narrowing Reference Conversion
+public boolean isDisjointFrom(ReferenceBinding that) {
+	if (this.isInterface()) {
+		if (that.isInterface()) {
+			/* • An interface named I is disjoint from another interface named J if (i) it is not that case that I <: J, and (ii) it is not the case that J <: I, and
+			 *  (iii) one of the following cases applies:
+		             – I is sealed, and all of the permitted direct subclasses and subinterfaces of I are disjoint from J.
+		             – J is sealed, and I is disjoint from all the permitted direct subclasses and subinterfaces of J.
+			 */
+			if (this.findSuperTypeOriginatingFrom(that) != null || that.findSuperTypeOriginatingFrom(this) != null)
+				return false;
+			if (this.isSealed()) {
+				for (ReferenceBinding directSubType : this.permittedTypes()) {
+					if (!directSubType.isDisjointFrom(that))
+						return false;
+				}
+				return true;
+			}
+			if (that.isSealed()) {
+				for (ReferenceBinding directSubType : that.permittedTypes()) {
+					if (!this.isDisjointFrom(directSubType))
+						return false;
+				}
+				return true;
+			}
+			return false;
+		} else {
+			// • An interface named I is disjoint from a class named C if C is disjoint from I.
+			return that.isDisjointFrom(this);
+		}
+	} else {
+		if (that.isInterface()) {
+			/* • A class named C is disjoint from an interface named I if (i) it is not the case that C <: I, and (ii) one of the following cases applies:
+			 – C is final.
+			 – C is sealed, and all of the permitted direct subclasses of C are disjoint from I.
+			 – C is freely extensible (§8.1.1.2), and I is sealed, and C is disjoint from all of the permitted direct subclasses and subinterfaces of I
+			 */
+			if (this.findSuperTypeOriginatingFrom(that) != null)
+				return false;
+			if (this.isFinal())
+				return true;
+			if (this.isSealed()) {
+				for (ReferenceBinding directSubclass : this.permittedTypes()) {
+					if (!directSubclass.isDisjointFrom(that))
+						return false;
+				}
+				return true;
+			}
+			if (that.isSealed()) {
+				for (ReferenceBinding directSubType : that.permittedTypes()) {
+					if (!this.isDisjointFrom(directSubType))
+						return false;
+				}
+				return true;
+			}
+			return false;
+		} else {
+			// • A class named C is disjoint from another class named D if (i) it is not the case that C <: D, and (ii) it is not the case that D <: C.
+			return this.findSuperTypeOriginatingFrom(that) == null && that.findSuperTypeOriginatingFrom(this) == null;
+		}
+	}
 }
 static class InvalidBindingException extends Exception {
 	private static final long serialVersionUID = 1L;

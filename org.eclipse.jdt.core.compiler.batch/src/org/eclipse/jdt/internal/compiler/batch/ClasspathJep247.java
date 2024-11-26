@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.internal.compiler.batch.FileSystem.Classpath;
 import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
@@ -261,7 +260,7 @@ public class ClasspathJep247 extends ClasspathJrt {
 		}
 		if (moduleName == null) {
 			// Delegate to the boss, even if it means inaccurate error reporting at times
-			List<String> mods = JRTUtil.getModulesDeclaringPackage(this.file, qualifiedPackageName, moduleName);
+			List<String> mods = JRTUtil.getModulesDeclaringPackage(this.jrtFileSystem, qualifiedPackageName, moduleName);
 			return CharOperation.toCharArrays(mods);
 		}
 		return singletonModuleNameIf(this.packageCache.contains(qualifiedPackageName));

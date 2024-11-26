@@ -16,25 +16,16 @@ package org.eclipse.jdt.core.tests;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-
+import junit.framework.Test;
+import junit.framework.TestCase;
+import junit.framework.TestSuite;
 import org.eclipse.jdt.core.tests.compiler.parser.ComplianceDiagnoseTest;
-import org.eclipse.jdt.core.tests.compiler.regression.InstanceofPrimaryPatternTest;
-import org.eclipse.jdt.core.tests.compiler.regression.PatternMatching16Test;
-import org.eclipse.jdt.core.tests.compiler.regression.RecordPatternTest;
-import org.eclipse.jdt.core.tests.compiler.regression.SwitchExpressionsYieldTest;
-import org.eclipse.jdt.core.tests.compiler.regression.SwitchPatternTest;
-import org.eclipse.jdt.core.tests.compiler.regression.SwitchPatternTest21;
-import org.eclipse.jdt.core.tests.compiler.regression.SwitchTest;
-import org.eclipse.jdt.core.tests.compiler.regression.UnnamedPatternsAndVariablesTest;
+import org.eclipse.jdt.core.tests.compiler.regression.*;
 import org.eclipse.jdt.core.tests.dom.ConverterTestSetup;
 import org.eclipse.jdt.core.tests.model.JavaSearchBugs14SwitchExpressionTests;
 import org.eclipse.jdt.core.tests.rewrite.describing.ASTRewritingSwitchExpressionsTest;
 import org.eclipse.jdt.core.tests.rewrite.describing.ASTRewritingSwitchPatternTest;
 import org.eclipse.jdt.core.tests.util.AbstractCompilerTest;
-
-import junit.framework.Test;
-import junit.framework.TestCase;
-import junit.framework.TestSuite;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class RunVariousSwitchTests extends TestCase {
@@ -46,7 +37,7 @@ public class RunVariousSwitchTests extends TestCase {
 		return new Class[] {
 
 				SwitchPatternTest.class,
-				SwitchPatternTest21.class,
+				SwitchPatternTest22.class,
 				SwitchTest.class,
 				SwitchExpressionsYieldTest.class,
 
@@ -54,6 +45,11 @@ public class RunVariousSwitchTests extends TestCase {
 				InstanceofPrimaryPatternTest.class,
 				PatternMatching16Test.class,
 				UnnamedPatternsAndVariablesTest.class,
+				JEP441SnippetsTest.class,
+				FlowAnalysisTest.class,
+				EnumTest.class,
+				LocalEnumTest.class,
+				ConstantTest.class,
 
 				JavaSearchBugs14SwitchExpressionTests.class,
 				ASTRewritingSwitchExpressionsTest.class,

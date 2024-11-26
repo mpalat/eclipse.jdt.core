@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2023 IBM Corporation and others.
+ * Copyright (c) 2000, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -22,7 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
-
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jdt.core.IClassFile;
 import org.eclipse.jdt.core.ICompilationUnit;
@@ -481,7 +482,6 @@ public final class AST {
 	 * up to and including Java SE 23(aka JDK 23).
 	 * </p>
 	 *
-	 * @noreference This field is not intended to be referenced by clients. Java 23 support is WIP.
 	 * @since 3.38
 	 */
 	public static final int JLS23 = 23;
@@ -534,7 +534,7 @@ public final class AST {
 	 * Internal property for latest supported JLS level
 	 * This provides the latest JLS level.
 	 */
-	private static final int JLS_INTERNAL_Latest = JLS22;
+	private static final int JLS_INTERNAL_Latest = JLS23;
 
 	/**
 	 * @since 3.26
@@ -1030,7 +1030,7 @@ public final class AST {
 	 * </p>
 	 * @since 3.0
 	 */
-	private int disableEvents = 0;
+	private final AtomicInteger disableEvents = new AtomicInteger();
 
 	/**
 	 * The event handler for this AST.
@@ -1050,7 +1050,7 @@ public final class AST {
 	 * Internal modification count; initially 0; increases monotonically
 	 * <b>by one or more</b> as the AST is successively modified.
 	 */
-	private long modificationCount = 0;
+	private final AtomicLong modificationCount = new AtomicLong();
 
 	/**
 	 * Internal original modification count; value is equals to <code>
@@ -1058,7 +1058,7 @@ public final class AST {
 	 * </code>). If this ast is not created with a parser then value is 0.
 	 * @since 3.0
 	 */
-	private long originalModificationCount = 0;
+	private volatile long originalModificationCount;
 
 	/**
 	 * The binding resolver for this AST. Initially a binding resolver that
@@ -1383,7 +1383,7 @@ public final class AST {
 	final void disableEvents() {
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by another reader
-			this.disableEvents++;
+			this.disableEvents.incrementAndGet();
 		}
 		// while disableEvents > 0 no events will be reported, and mod count will stay fixed
 	}
@@ -1493,7 +1493,7 @@ public final class AST {
 	 *    this AST
 	 */
 	public long modificationCount() {
-		return this.modificationCount;
+		return this.modificationCount.get();
 	}
 
 	/**
@@ -1514,11 +1514,11 @@ public final class AST {
 	void modifying() {
 		// when this method is called during lazy init, events are disabled
 		// and the modification count will not be increased
-		if (this.disableEvents > 0) {
+		if (this.disableEvents.get() > 0) {
 			return;
 		}
 		// increase the modification count
-		this.modificationCount++;
+		this.modificationCount.incrementAndGet();
 	}
 
 	/**
@@ -2493,6 +2493,9 @@ public final class AST {
 		if (Modifier.isNonSealed(flags)) {
 			result.add(newModifier(Modifier.ModifierKeyword.NON_SEALED_KEYWORD));
 		}
+		if (Modifier.isModule(flags)) {
+			result.add(newModifier(Modifier.ModifierKeyword.MODULE_KEYWORD));
+		}
 		return result;
 	}
 
@@ -2992,36 +2995,6 @@ public final class AST {
 	public StringLiteral newStringLiteral() {
 		return new StringLiteral(this);
 	}
-	/**
-	 * Creates and returns a new unparented string fragment node for
-	 * the empty string fragment.
-	 *
-	 * @return a new unparented string fragment node
-	 * @since 3.37
-	 */
-	public StringFragment newStringFragment() {
-		return new StringFragment(this);
-	}
-	/**
-	 * Creates and returns a new unparented string template expression node for
-	 * the empty string template expression.
-	 *
-	 * @return a new unparented string literal node
-	 * @since 3.37
-	 */
-	public StringTemplateExpression newStringTemplateExpression() {
-		return new StringTemplateExpression(this);
-	}
-	/**
-	 * Creates and returns a new unparented string template component node for
-	 * the empty string template component.
-	 *
-	 * @return a new unparented string literal node
-	 * @since 3.37
-	 */
-	public StringTemplateComponent newStringTemplateComponent() {
-		return new StringTemplateComponent(this);
-	}
 
 	/**
 	 * Creates an unparented alternate super constructor ("super(...);")
@@ -3214,6 +3187,19 @@ public final class AST {
 	 */
 	public TryStatement newTryStatement() {
 		return new TryStatement(this);
+	}
+
+	/**
+	 * Creates an unparented class declaration node owned by this AST.
+	 * The name of the class is an unspecified, but legal, name;
+	 * no modifiers; no doc comment; no superclass or superinterfaces;
+	 * and an empty class body.
+	 *
+	 * @return a new unparented type declaration node
+	 * @since 3.40
+	 */
+	public ImplicitTypeDeclaration newImplicitTypeDeclaration() {
+		return new ImplicitTypeDeclaration(this);
 	}
 
 	/**
@@ -3503,7 +3489,7 @@ public final class AST {
 		// IMPORTANT: this method is called by readers during lazy init
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE ADD]");
 				return;
@@ -3530,7 +3516,7 @@ public final class AST {
 	void postCloneNodeEvent(ASTNode node, ASTNode clone) {
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE CLONE]");
 				return;
@@ -3559,7 +3545,7 @@ public final class AST {
 		// IMPORTANT: this method is called by readers during lazy init
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE DEL]");
 				return;
@@ -3589,7 +3575,7 @@ public final class AST {
 		// IMPORTANT: this method is called by readers during lazy init
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE REP]");
 				return;
@@ -3618,7 +3604,7 @@ public final class AST {
 		// IMPORTANT: this method is called by readers during lazy init
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE CHANGE]");
 				return;
@@ -3647,7 +3633,7 @@ public final class AST {
 		// IMPORTANT: this method is called by readers during lazy init
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE ADD]");
 				return;
@@ -3673,7 +3659,7 @@ public final class AST {
 	void preCloneNodeEvent(ASTNode node) {
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE CLONE]");
 				return;
@@ -3702,7 +3688,7 @@ public final class AST {
 		// IMPORTANT: this method is called by readers during lazy init
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE DEL]");
 				return;
@@ -3732,7 +3718,7 @@ public final class AST {
 		// IMPORTANT: this method is called by readers during lazy init
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE REP]");
 				return;
@@ -3761,7 +3747,7 @@ public final class AST {
 		// IMPORTANT: this method is called by readers during lazy init
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by a reader doing lazy init
-			if (this.disableEvents > 0) {
+			if (this.disableEvents.get() > 0) {
 				// doing lazy init OR already processing an event
 				// System.out.println("[BOUNCE CHANGE]");
 				return;
@@ -3797,7 +3783,7 @@ public final class AST {
 	 * @since 3.0
 	 */
 	void recordModifications(CompilationUnit root) {
-		if(this.modificationCount != this.originalModificationCount) {
+		if(this.modificationCount.get() != this.originalModificationCount) {
 			throw new IllegalArgumentException("AST is already modified"); //$NON-NLS-1$
 		} else if(this.rewriter  != null) {
 			throw new IllegalArgumentException("AST modifications are already recorded"); //$NON-NLS-1$
@@ -3823,7 +3809,7 @@ public final class AST {
 	final void reenableEvents() {
 		synchronized (this.internalASTLock) {
 			// guard against concurrent access by another reader
-			this.disableEvents--;
+			this.disableEvents.decrementAndGet();
 		}
 	}
 

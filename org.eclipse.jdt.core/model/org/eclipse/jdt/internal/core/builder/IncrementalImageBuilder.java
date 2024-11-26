@@ -13,26 +13,43 @@
  *******************************************************************************/
 package org.eclipse.jdt.internal.core.builder;
 
-import org.eclipse.core.resources.*;
-import org.eclipse.core.runtime.*;
-
-import org.eclipse.jdt.core.*;
-import org.eclipse.jdt.core.compiler.*;
-import org.eclipse.jdt.internal.compiler.*;
-import org.eclipse.jdt.internal.compiler.classfmt.*;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Map.Entry;
+import java.util.Set;
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.resources.IMarker;
+import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.IResourceDelta;
+import org.eclipse.core.resources.IResourceStatus;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.jdt.core.IJavaModelMarker;
+import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.core.compiler.CategorizedProblem;
+import org.eclipse.jdt.core.compiler.CharOperation;
+import org.eclipse.jdt.internal.compiler.ClassFile;
+import org.eclipse.jdt.internal.compiler.CompilationResult;
+import org.eclipse.jdt.internal.compiler.classfmt.ClassFileReader;
+import org.eclipse.jdt.internal.compiler.classfmt.ClassFormatException;
 import org.eclipse.jdt.internal.compiler.lookup.ModuleBinding;
 import org.eclipse.jdt.internal.compiler.lookup.TypeConstants;
-import org.eclipse.jdt.internal.compiler.problem.*;
+import org.eclipse.jdt.internal.compiler.problem.AbortCompilation;
 import org.eclipse.jdt.internal.compiler.util.SimpleLookupTable;
 import org.eclipse.jdt.internal.compiler.util.SuffixConstants;
 import org.eclipse.jdt.internal.core.CompilationGroup;
 import org.eclipse.jdt.internal.core.util.Messages;
 import org.eclipse.jdt.internal.core.util.Util;
-
-import java.io.*;
-import java.net.URI;
-import java.util.*;
-import java.util.Map.Entry;
 
 /**
  * The incremental image builder
@@ -877,12 +894,12 @@ protected void writeClassFileContents(ClassFile classfile, IFile file, String qu
 	// If structural changes occurred then add dependent source files
 	byte[] bytes = classfile.getBytes();
 	if (file.exists()) {
-		if (writeClassFileCheck(file, qualifiedFileName, bytes) || compilationUnit.updateClassFile) { // see 46093
+		if (classFileChanged(file, qualifiedFileName, bytes) || compilationUnit.updateClassFile) { // see 46093
 			if (JavaBuilder.DEBUG)
 				System.out.println("Writing changed class file " + file.getName());//$NON-NLS-1$
 			if (!file.isDerived())
 				file.setDerived(true, null);
-			file.setContents(new ByteArrayInputStream(bytes), true, false, null);
+			file.setContents(bytes, true, false, null);
 		} else if (JavaBuilder.DEBUG) {
 			System.out.println("Skipped over unchanged class file " + file.getName());//$NON-NLS-1$
 		}
@@ -892,7 +909,7 @@ protected void writeClassFileContents(ClassFile classfile, IFile file, String qu
 		if (JavaBuilder.DEBUG)
 			System.out.println("Writing new class file " + file.getName());//$NON-NLS-1$
 		try {
-			file.create(new ByteArrayInputStream(bytes), IResource.FORCE | IResource.DERIVED, null);
+			file.create(bytes, IResource.FORCE | IResource.DERIVED, null);
 		} catch (CoreException e) {
 			if (e.getStatus().getCode() == IResourceStatus.CASE_VARIANT_EXISTS) {
 				IStatus status = e.getStatus();
@@ -917,7 +934,7 @@ protected void writeClassFileContents(ClassFile classfile, IFile file, String qu
 						collision.delete(true, false, null);
 						boolean success = false;
 						try {
-							file.create(new ByteArrayInputStream(bytes), IResource.FORCE | IResource.DERIVED, null);
+							file.create(bytes, IResource.FORCE | IResource.DERIVED, null);
 							success = true;
 						} catch (CoreException ignored) {
 							// ignore the second exception
@@ -933,13 +950,11 @@ protected void writeClassFileContents(ClassFile classfile, IFile file, String qu
 	}
 }
 
-protected boolean writeClassFileCheck(IFile file, String fileName, byte[] newBytes) throws CoreException {
+protected boolean classFileChanged(IFile file, String fileName, byte[] newBytes) throws CoreException {
 	try {
 		byte[] oldBytes = Util.getResourceContentsAsByteArray(file);
-		notEqual : if (newBytes.length == oldBytes.length) {
-			for (int i = newBytes.length; --i >= 0;)
-				if (newBytes[i] != oldBytes[i]) break notEqual;
-			return false; // bytes are identical so skip them
+		if (Arrays.equals(oldBytes, newBytes))  {
+			return false;
 		}
 		URI location = file.getLocationURI();
 		if (location == null) return false; // unable to determine location of this class file

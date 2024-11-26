@@ -20,24 +20,24 @@ import static org.eclipse.jdt.internal.core.JavaModelManager.trace;
 
 import java.io.File;
 import java.net.URL;
-import java.util.*;
-
-import org.eclipse.core.resources.IBuildConfiguration;
-import org.eclipse.core.resources.IContainer;
-import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IFolder;
-import org.eclipse.core.resources.IMarker;
-import org.eclipse.core.resources.IMarkerDelta;
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.IResource;
-import org.eclipse.core.resources.IResourceChangeEvent;
-import org.eclipse.core.resources.IResourceDelta;
-import org.eclipse.core.resources.IResourceDeltaVisitor;
-import org.eclipse.core.resources.IWorkspace;
-import org.eclipse.core.resources.IWorkspaceRoot;
-import org.eclipse.core.resources.IWorkspaceRunnable;
-import org.eclipse.core.resources.ResourcesPlugin;
-import org.eclipse.core.runtime.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.eclipse.core.resources.*;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.ILog;
+import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.ISafeRunnable;
+import org.eclipse.core.runtime.OperationCanceledException;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.PerformanceStats;
+import org.eclipse.core.runtime.SafeRunner;
 import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.internal.compiler.SourceElementParser;
@@ -1903,7 +1903,7 @@ public class DeltaProcessor {
 		while (this.currentElement != null) {
 			IPath currentElementPath = null;
 			if (this.currentElement instanceof IPackageFragmentRoot) {
-				currentElementPath = ((IPackageFragmentRoot)this.currentElement).getPath();
+				currentElementPath = this.currentElement.getPath();
 			} else {
 				IResource currentElementResource = this.currentElement.resource();
 				if (currentElementResource != null) {
@@ -2023,7 +2023,9 @@ public class DeltaProcessor {
 	 */
 	public void registerJavaModelDelta(IJavaElementDelta delta) {
 		if (JavaModelManager.isReadOnly()) {
-			throw new IllegalStateException("Its not allow to modify JavaModel during ReadOnly action. delta=" + delta); //$NON-NLS-1$
+			ILog.get().warn("JavaModel change during read only operation", new IllegalStateException( //$NON-NLS-1$
+					"JavaModel modified during 'read only' operation. Consider to report this warning to https://github.com/eclipse-jdt/eclipse.jdt.core/issues. delta=" //$NON-NLS-1$
+							+ delta));
 		}
 		this.javaModelDeltas.add(delta);
 	}

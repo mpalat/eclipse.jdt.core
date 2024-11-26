@@ -13,15 +13,11 @@
  *******************************************************************************/
 package org.eclipse.jdt.core.tests.compiler.regression;
 
-import java.util.List;
 import java.util.Map;
-
-import org.eclipse.jdt.core.tests.util.AbstractCompilerTest;
-import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
-import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
-
 import junit.framework.Test;
 import junit.framework.TestSuite;
+import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
+import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 
 public class ResourceLeakAnnotatedTests extends ResourceLeakTests {
 
@@ -38,72 +34,9 @@ public ResourceLeakAnnotatedTests(String name) {
 }
 public static Test suite() {
 	TestSuite suite = new TestSuite(ResourceLeakAnnotatedTests.class.getName());
-	// argument 'inheritedDepth' is not exposed in original API, therefore these helpers are copied below with this arg added
-	buildMinimalComplianceTestSuite(F_1_7, 1, suite, ResourceLeakAnnotatedTests.class);
+	buildMinimalComplianceTestSuite(FIRST_SUPPORTED_JAVA_VERSION, 1, suite, ResourceLeakAnnotatedTests.class);
 	return suite;
 }
-
-private static void buildMinimalComplianceTestSuite(int minimalCompliance, int inheritedDepth, TestSuite suite, Class<?> evaluationTestClass) {
-	int complianceLevels = AbstractCompilerTest.getPossibleComplianceLevels();
-	for (int[] map : complianceTestLevelMapping) {
-		if ((complianceLevels & map[0]) != 0) {
-			long complianceLevelForJavaVersion = ClassFileConstants.getComplianceLevelForJavaVersion(map[1]);
-			checkCompliance(evaluationTestClass, minimalCompliance, suite, complianceLevels, inheritedDepth, map[0], map[1], getVersionString(complianceLevelForJavaVersion));
-		}
-	}
-}
-protected static void checkCompliance(Class<?> evaluationTestClass, int minimalCompliance, TestSuite suite, int complianceLevels,
-		int inheritedDepth, int abstractCompilerTestCompliance, int classFileConstantsVersion, String release) {
-	int lev = complianceLevels & abstractCompilerTestCompliance;
-	if (lev != 0) {
-		if (lev < minimalCompliance) {
-			System.err.println("Cannot run "+evaluationTestClass.getName()+" at compliance " + release + "!");
-		} else {
-			suite.addTest(buildUniqueComplianceTestSuite(evaluationTestClass, ClassFileConstants.getComplianceLevelForJavaVersion(classFileConstantsVersion), inheritedDepth));
-		}
-	}
-}
-public static Test buildUniqueComplianceTestSuite(Class<?> evaluationTestClass, long uniqueCompliance, int inheritedDepth) {
-	long highestLevel = highestComplianceLevels();
-	if (highestLevel < uniqueCompliance) {
-		String complianceString;
-		if (highestLevel == ClassFileConstants.JDK10)
-			complianceString = "10";
-		else if (highestLevel == ClassFileConstants.JDK9)
-			complianceString = "9";
-		else if (highestLevel == ClassFileConstants.JDK1_8)
-			complianceString = "1.8";
-		else if (highestLevel == ClassFileConstants.JDK1_7)
-			complianceString = "1.7";
-		else if (highestLevel == ClassFileConstants.JDK1_6)
-			complianceString = "1.6";
-		else if (highestLevel == ClassFileConstants.JDK1_5)
-			complianceString = "1.5";
-		else if (highestLevel == ClassFileConstants.JDK1_4)
-			complianceString = "1.4";
-		else if (highestLevel == ClassFileConstants.JDK1_3)
-			complianceString = "1.3";
-		else {
-			highestLevel = ClassFileConstants.getLatestJDKLevel();
-			if (highestLevel > 0) {
-				complianceString = CompilerOptions.versionFromJdkLevel(highestLevel);
-			} else {
-				complianceString = "unknown";
-			}
-
-		}
-
-		System.err.println("Cannot run "+evaluationTestClass.getName()+" at compliance "+complianceString+"!");
-		return new TestSuite();
-	}
-	TestSuite complianceSuite = new RegressionTestSetup(uniqueCompliance);
-	List<Test> tests = buildTestsList(evaluationTestClass, inheritedDepth);
-	for (int index=0, size=tests.size(); index<size; index++) {
-		complianceSuite.addTest(tests.get(index));
-	}
-	return complianceSuite;
-}
-
 
 @Override
 protected Map<String, String> getCompilerOptions() {
@@ -639,7 +572,7 @@ public void testSharedField() {
 				PrintWriter fOther;
 				@Owning PrintWriter fProper;
 				boolean useField = false;
-				A(PrintWriter writer1, PrintWriter writer2, @Owning PrintWriter writer3) {
+				A(@Owning PrintWriter writer1, PrintWriter writer2, @Owning PrintWriter writer3) {
 					fWriter = writer1;
 					fOther = writer2;
 					fProper = writer3;
@@ -649,20 +582,20 @@ public void testSharedField() {
 		},
 		"""
 		----------
-		1. WARNING in A.java (at line 5)
-			@NotOwning PrintWriter fWriter;
-			                       ^^^^^^^
-		It is recommended to mark resource fields as '@Owning' to ensure proper closing
-		----------
-		2. WARNING in A.java (at line 6)
+		1. WARNING in A.java (at line 6)
 			PrintWriter fOther;
 			            ^^^^^^
 		It is recommended to mark resource fields as '@Owning' to ensure proper closing
 		----------
-		3. WARNING in A.java (at line 7)
+		2. WARNING in A.java (at line 7)
 			@Owning PrintWriter fProper;
 			                    ^^^^^^^
 		Class with resource fields tagged as '@Owning' should implement AutoCloseable
+		----------
+		3. ERROR in A.java (at line 9)
+			A(@Owning PrintWriter writer1, PrintWriter writer2, @Owning PrintWriter writer3) {
+			                      ^^^^^^^
+		Resource leak: 'writer1' is never closed
 		----------
 		""",
 		options
@@ -1711,6 +1644,68 @@ public void testGH2161_initializers() {
 		It is not recommended to hold a resource in a static field
 		----------
 		""",
+		options);
+}
+public void testGH2635() {
+	Map<String, String> options = getCompilerOptions();
+	options.put(CompilerOptions.OPTION_ReportPotentiallyUnclosedCloseable, CompilerOptions.ERROR);
+	options.put(CompilerOptions.OPTION_ReportUnclosedCloseable, CompilerOptions.ERROR);
+	options.put(CompilerOptions.OPTION_ReportExplicitlyClosedAutoCloseable, CompilerOptions.ERROR);
+	runLeakTestWithAnnotations(
+		new String[] {
+			"owning_test/OwningTest.java",
+			"""
+			package owning_test;
+
+			import java.io.FileInputStream;
+			import java.io.FileNotFoundException;
+			import java.io.IOException;
+			import java.io.InputStream;
+
+			import org.eclipse.jdt.annotation.Owning;
+
+			public class OwningTest implements AutoCloseable {
+
+				@Owning
+				private InputStream fileInputStream;
+
+				@SuppressWarnings("unused")
+				private NotOwningTest cacheUser;
+
+				public void initialise() throws FileNotFoundException {
+				  fileInputStream = new FileInputStream("test.txt");
+				  cacheUser = new NotOwningTest(fileInputStream);
+				}
+
+				@Override
+				public void close() throws IOException {
+					fileInputStream.close();
+				}
+
+			}
+			""",
+			"owning_test/NotOwningTest.java",
+			"""
+			package owning_test;
+
+			import java.io.InputStream;
+
+			import org.eclipse.jdt.annotation.NotOwning;
+
+			public class NotOwningTest {
+
+				// If get a warning here - "It is recommended to mark resource fields as '@Owning' to ensure proper closing"
+				@NotOwning
+				private InputStream cacheInputStream;
+
+				NotOwningTest(InputStream aCacheInputStream) {
+					cacheInputStream = aCacheInputStream;
+				}
+
+			}
+			"""
+		},
+		"",
 		options);
 }
 }

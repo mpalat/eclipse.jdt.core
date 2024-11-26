@@ -16,7 +16,6 @@ package org.eclipse.jdt.core.dom;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 
 /**
@@ -208,8 +207,7 @@ public class SimpleType extends AnnotatableType {
 			synchronized (this) {
 				if (this.typeName == null) {
 					preLazyInit();
-					this.typeName = new SimpleName(this.ast);
-					postLazyInit(this.typeName, NAME_PROPERTY);
+					this.typeName = postLazyInit(new SimpleName(this.ast), NAME_PROPERTY);
 				}
 			}
 		}

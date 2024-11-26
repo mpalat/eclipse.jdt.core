@@ -15,7 +15,7 @@ package org.eclipse.jdt.core.tests.dom;
 
 import java.util.List;
 import java.util.function.Consumer;
-
+import junit.framework.Test;
 import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -28,8 +28,6 @@ import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.core.JrtPackageFragmentRoot;
 import org.eclipse.jdt.internal.core.SourceModule;
 import org.eclipse.text.edits.ReplaceEdit;
-
-import junit.framework.Test;
 
 @SuppressWarnings({"rawtypes"})
 public class ASTConverter9Test extends ConverterTestSetup {
@@ -1327,7 +1325,7 @@ public class ASTConverter9Test extends ConverterTestSetup {
 			// common check for both parts:
 			Consumer<IBinding> validateBinding = (IBinding binding) -> {
 				assertTrue("Not ModuleBinding", binding instanceof IModuleBinding);
-				IAnnotationBinding[] annotations = ((IModuleBinding) binding).getAnnotations();
+				IAnnotationBinding[] annotations = binding.getAnnotations();
 				assertEquals("Number of annotations",  1, annotations.length);
 				assertEquals("Annotation type", "Deprecated", annotations[0].getAnnotationType().getName());
 			};

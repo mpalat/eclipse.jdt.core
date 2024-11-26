@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2021, 2023 GK Software SE, and others.
+ * Copyright (c) 2021, 2024 GK Software SE, and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -16,13 +16,11 @@ package org.eclipse.jdt.core.tests.compiler.regression;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
-
+import junit.framework.Test;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.tests.util.Util;
 import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
-
-import junit.framework.Test;
 
 public class NullAnnotationTests21 extends AbstractNullAnnotationTest {
 
@@ -999,16 +997,17 @@ public class NullAnnotationTests21 extends AbstractNullAnnotationTest {
 		runner.runConformTest();
 	}
 
-	public void testGH1964_since_22() {
-		if (this.complianceLevel < ClassFileConstants.JDK22)
+	// disabling the tests since String Template is no longer there - not removing the test in case it comes back later.
+	public void _testGH1964_since_22() {
+		if (this.complianceLevel < ClassFileConstants.JDK23)
 			return;
 		Runner runner = new Runner();
 		runner.customOptions = getCompilerOptions();
 		runner.customOptions.put(CompilerOptions.OPTION_EnablePreviews, CompilerOptions.ENABLED);
 		runner.customOptions.put(CompilerOptions.OPTION_ReportPreviewFeatures, CompilerOptions.IGNORE);
-		runner.customOptions.put(CompilerOptions.OPTION_Compliance, CompilerOptions.VERSION_22);
-		runner.customOptions.put(CompilerOptions.OPTION_Source, CompilerOptions.VERSION_22);
-		runner.customOptions.put(CompilerOptions.OPTION_TargetPlatform, CompilerOptions.VERSION_22);
+		runner.customOptions.put(CompilerOptions.OPTION_Compliance, CompilerOptions.VERSION_23);
+		runner.customOptions.put(CompilerOptions.OPTION_Source, CompilerOptions.VERSION_23);
+		runner.customOptions.put(CompilerOptions.OPTION_TargetPlatform, CompilerOptions.VERSION_23);
 		runner.vmArguments = new String[] {"--enable-preview"};
 		runner.testFiles = new String[] {
 			"JDK21TestingMain.java",
@@ -1100,5 +1099,149 @@ public class NullAnnotationTests21 extends AbstractNullAnnotationTest {
 		};
 		runner.classLibraries = this.LIBS;
 		runner.runConformTest();
+	}
+
+	// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/2521
+	// NPE on exhaustive pattern matching switch expressions with sealed interface
+	public void testIssue2521() {
+		Runner runner = new Runner();
+		runner.testFiles = new String[] {
+			"X.java",
+			"""
+			@org.eclipse.jdt.annotation.NonNullByDefault
+
+			public sealed interface X {
+
+				record Stuff() implements X {}
+
+				static Stuff match(X pm) {
+					return switch(pm) {
+						case Stuff s -> s;
+					 	//default -> new Stuff(); //... you should not need as we exhausted it but Eclipse NPE w/o a default.
+					};
+				}
+
+				public static void main(String[] args) {
+				    System.out.println(match(new Stuff()));
+				}
+			}
+			"""
+		};
+		runner.expectedOutputString =
+				"Stuff[]";
+		runner.classLibraries = this.LIBS;
+		runner.runConformTest();
+	}
+
+	// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/2522
+	// Pattern matching on sealed classes cannot infer NonNull (JDK 21)
+	public void testIssue2522() {
+		Runner runner = getDefaultRunner();
+		runner.testFiles = new String[] {
+			"PatternMatching.java",
+			"""
+			import org.eclipse.jdt.annotation.*;
+
+			public sealed interface PatternMatching {
+
+			    record Stuff() implements PatternMatching {}
+
+			    @NonNull
+			    static Stuff match(PatternMatching pm, int v) {
+			    	if (v == 0) {
+						Stuff r = switch (pm) {
+						case Stuff s -> s;
+						case null -> throw new NullPointerException();
+						};
+						return r; // no error here - good
+			    	} else if (v == 1) {
+						Stuff r = switch (pm) {
+						case Stuff s -> s;
+						case null -> throw new NullPointerException();
+						};
+						return null; // get error here	- good
+			    	} else if (v == 2) {
+						Stuff r = switch (pm) {
+						case Stuff s -> s;
+						};
+						return r; // no error here -- good
+			    	} else if (v == 3) {
+						Stuff r = switch (pm) {
+						case Stuff s -> null; // <<<<<---------------------------- Line 28 - error Why ???
+						};
+						return r; // get error here - good
+			    	} else if (v == 4) {
+						Stuff r = switch (pm) {
+						case Stuff s -> s;
+						case null -> null;  // <<<-------------------------------- Line 34 - error Why ??
+						};
+						return new Stuff(); // no error here   // good
+			    	}
+			    	return new Stuff();
+			    }
+			}
+			"""
+		};
+		runner.expectedCompilerLog =
+				"""
+				----------
+				1. ERROR in PatternMatching.java (at line 20)
+					return null; // get error here	- good
+					       ^^^^
+				Null type mismatch: required 'PatternMatching.@NonNull Stuff' but the provided value is null
+				----------
+				2. ERROR in PatternMatching.java (at line 30)
+					return r; // get error here - good
+					       ^
+				Null type mismatch: required 'PatternMatching.@NonNull Stuff' but the provided value is null
+				----------
+				""";
+		runner.runNegativeTest();
+	}
+
+	// https://github.com/eclipse-jdt/eclipse.jdt.core/issues/2522
+	// Pattern matching on sealed classes cannot infer NonNull (JDK 21)
+	public void testIssue2522_2() {
+		Runner runner = getDefaultRunner();
+		runner.testFiles = new String[] {
+			"PatternMatching.java",
+			"""
+			import org.eclipse.jdt.annotation.*;
+
+			public sealed interface PatternMatching {
+
+			    record Stuff() implements PatternMatching {}
+
+			    @NonNull
+			    static Stuff match(PatternMatching pm, int v) {
+			    	if (v == 0) {
+						return switch (pm) {
+						case Stuff s -> s;
+						case null -> throw new NullPointerException();
+						}; // no error here - good
+			    	} else if (v == 2) {
+						return switch (pm) {
+						case Stuff s -> s;
+						}; // no error here -- good
+			    	} else if (v == 3) {
+						return switch (pm) {
+						case Stuff s -> null;  // get error here - good
+						};
+			    	}
+			    	return new Stuff();
+			    }
+			}
+			"""
+		};
+		runner.expectedCompilerLog =
+				"""
+				----------
+				1. ERROR in PatternMatching.java (at line 20)
+					case Stuff s -> null;  // get error here - good
+					                ^^^^
+				Null type mismatch: required 'PatternMatching.@NonNull Stuff' but the provided value is null
+				----------
+				""";
+		runner.runNegativeTest();
 	}
 }

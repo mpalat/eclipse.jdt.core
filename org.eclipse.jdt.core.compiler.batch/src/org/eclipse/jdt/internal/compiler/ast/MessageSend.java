@@ -71,7 +71,6 @@ import static org.eclipse.jdt.internal.compiler.ast.ExpressionContext.VANILLA_CO
 
 import java.util.HashMap;
 import java.util.function.BiConsumer;
-
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
@@ -85,37 +84,7 @@ import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.compiler.impl.Constant;
 import org.eclipse.jdt.internal.compiler.impl.IrritantSet;
 import org.eclipse.jdt.internal.compiler.impl.ReferenceContext;
-import org.eclipse.jdt.internal.compiler.lookup.ArrayBinding;
-import org.eclipse.jdt.internal.compiler.lookup.Binding;
-import org.eclipse.jdt.internal.compiler.lookup.BlockScope;
-import org.eclipse.jdt.internal.compiler.lookup.ExtraCompilerModifiers;
-import org.eclipse.jdt.internal.compiler.lookup.FieldBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ImplicitNullAnnotationVerifier;
-import org.eclipse.jdt.internal.compiler.lookup.InferenceContext18;
-import org.eclipse.jdt.internal.compiler.lookup.InferenceVariable;
-import org.eclipse.jdt.internal.compiler.lookup.LocalVariableBinding;
-import org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
-import org.eclipse.jdt.internal.compiler.lookup.MethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.MethodScope;
-import org.eclipse.jdt.internal.compiler.lookup.MissingTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ParameterizedGenericMethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ParameterizedMethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ParameterizedTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.PolyParameterizedGenericMethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.PolyTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.PolymorphicMethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ProblemMethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ProblemReasons;
-import org.eclipse.jdt.internal.compiler.lookup.ProblemReferenceBinding;
-import org.eclipse.jdt.internal.compiler.lookup.RawTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
-import org.eclipse.jdt.internal.compiler.lookup.Scope;
-import org.eclipse.jdt.internal.compiler.lookup.SourceTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.TagBits;
-import org.eclipse.jdt.internal.compiler.lookup.TypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.TypeConstants;
-import org.eclipse.jdt.internal.compiler.lookup.TypeIds;
-import org.eclipse.jdt.internal.compiler.lookup.TypeVariableBinding;
+import org.eclipse.jdt.internal.compiler.lookup.*;
 import org.eclipse.jdt.internal.compiler.problem.ProblemSeverities;
 import org.eclipse.jdt.internal.compiler.util.SimpleLookupTable;
 
@@ -343,7 +312,7 @@ private void yieldQualifiedCheck(BlockScope currentScope) {
 		return;
 	if (!CharOperation.equals(this.selector, TypeConstants.YIELD))
 		return;
-	currentScope.problemReporter().switchExpressionsYieldUnqualifiedMethodError(this);
+	currentScope.problemReporter().unqualifiedYieldMethod(this);
 }
 private void recordCallingClose(BlockScope currentScope, FlowContext flowContext, FlowInfo flowInfo, Expression closeTarget) {
 	if (closeTarget.isThis() || closeTarget.isSuper()) {
@@ -807,25 +776,14 @@ public TypeBinding resolveType(BlockScope scope) {
 	if (this.constant != Constant.NotAConstant) {
 		this.constant = Constant.NotAConstant;
 		long sourceLevel = scope.compilerOptions().sourceLevel;
-		boolean receiverCast = false;
 		if (this.receiver instanceof CastExpression) {
 			this.receiver.bits |= ASTNode.DisableUnnecessaryCastCheck; // will check later on
-			receiverCast = true;
 		}
 		this.actualReceiverType = this.receiver.resolveType(scope);
 		if (this.actualReceiverType instanceof InferenceVariable) {
 				return null; // not yet ready for resolving
 		}
 		this.receiverIsType = this.receiver.isType();
-		if (receiverCast && this.actualReceiverType != null) {
-			// due to change of declaring class with receiver type, only identity cast should be notified
-			TypeBinding resolvedType2 = ((CastExpression)this.receiver).expression.resolvedType;
-			if (TypeBinding.equalsEquals(resolvedType2, this.actualReceiverType)) {
-				if (!scope.environment().usesNullTypeAnnotations() || !NullAnnotationMatching.analyse(this.actualReceiverType, resolvedType2, -1).isAnyMismatch()) {
-					scope.problemReporter().unnecessaryCast((CastExpression) this.receiver);
-				}
-			}
-		}
 		// resolve type arguments (for generic constructor call)
 		if (this.typeArguments != null) {
 			int length = this.typeArguments.length;
@@ -977,6 +935,12 @@ public TypeBinding resolveType(BlockScope scope) {
 		return null;
 	}
 
+	if (this.receiver instanceof CastExpression castedRecevier) {
+		// this check was suppressed while resolving receiver, check now based on the resolved method
+		if (isUnnecessaryReceiverCast(scope, castedRecevier.expression.resolvedType))
+			scope.problemReporter().unnecessaryCast(castedRecevier);
+	}
+
 	if (compilerOptions.isAnnotationBasedNullAnalysisEnabled) {
 		ImplicitNullAnnotationVerifier.ensureNullnessIsKnown(this.binding, scope);
 		if (compilerOptions.sourceLevel >= ClassFileConstants.JDK1_8) {
@@ -999,7 +963,7 @@ public TypeBinding resolveType(BlockScope scope) {
 			this.binding = scope.environment().updatePolymorphicMethodReturnType((PolymorphicMethodBinding) this.binding, TypeBinding.VOID);
 		}
 	}
-	if ((this.binding.tagBits & TagBits.HasMissingType) != 0) {
+	if ((this.binding.tagBits & TagBits.HasMissingType) != 0 && isMissingTypeRelevant()) {
 		scope.problemReporter().missingTypeInMethod(this, this.binding);
 	}
 	if (!this.binding.isStatic()) {
@@ -1021,14 +985,9 @@ public TypeBinding resolveType(BlockScope scope) {
 				this.bits |= NeedReceiverGenericCast;
 			}
 		}
-		if (this.inPreConstructorContext && this.actualReceiverType != null &&
-				(this.receiver instanceof ThisReference thisReference && thisReference.isImplicitThis() ||
-				!(this.receiver instanceof ThisReference))) {
-			MethodScope ms = scope.methodScope();
-			MethodBinding method = ms != null ? ms.referenceMethodBinding() : null;
-			if (method != null && TypeBinding.equalsEquals(method.declaringClass, this.actualReceiverType)) {
-				scope.problemReporter().errorExpressionInPreConstructorContext(this);
-			}
+		if (this.actualReceiverType != null && scope.isInsideEarlyConstructionContext(this.actualReceiverType, true) &&
+				(this.receiver instanceof ThisReference thisReference && thisReference.isImplicitThis())) {
+			scope.problemReporter().messageSendInEarlyConstructionContext(this);
 		}
 	} else {
 		// static message invoked through receiver? legal but unoptimal (optional warning).
@@ -1094,6 +1053,46 @@ public TypeBinding resolveType(BlockScope scope) {
 	return (this.resolvedType.tagBits & TagBits.HasMissingType) == 0
 				? this.resolvedType
 				: null;
+}
+
+protected boolean isUnnecessaryReceiverCast(BlockScope scope, TypeBinding uncastedReceiverType) {
+	if (uncastedReceiverType == null || !uncastedReceiverType.isCompatibleWith(this.binding.declaringClass)) {
+		return false;
+	}
+	if (uncastedReceiverType.isRawType() && this.binding.declaringClass.isParameterizedType()) {
+		return false;
+	}
+	MethodBinding otherMethod = scope.getMethod(uncastedReceiverType, this.selector, this.argumentTypes, this);
+	if (!otherMethod.isValidBinding()) {
+		return false;
+	}
+	if (scope.environment().usesNullTypeAnnotations()
+			&& NullAnnotationMatching.analyse(this.actualReceiverType, uncastedReceiverType, -1).isAnyMismatch()) {
+		return false;
+	}
+	return otherMethod == this.binding
+			|| MethodVerifier.doesMethodOverride(this.binding, otherMethod, scope.environment())
+			|| MethodVerifier.doesMethodOverride(otherMethod, this.binding, scope.environment());
+}
+
+protected boolean isMissingTypeRelevant() {
+	if ((this.bits & ASTNode.InsideExpressionStatement) != 0) {
+		if (this.binding.collectMissingTypes(null, false) == null)
+			return false; // only irrelevant return type is missing
+	}
+	if ((this.binding.returnType.tagBits & TagBits.HasMissingType) == 0
+			&& this.binding.isVarargs()) {
+		int argLen = this.arguments != null ? this.arguments.length : 0;
+		if (argLen < this.binding.parameters.length) {
+			// are all but the irrelevant varargs type present?
+			for (int i = 0; i < argLen; i++) {
+				if ((this.binding.parameters[i].tagBits & TagBits.HasMissingType) != 0)
+					return true; // this one *is* relevant - actually this case is already detected during findMethodBinding()
+			}
+			return false;
+		}
+	}
+	return true;
 }
 
 protected TypeBinding handleNullnessCodePatterns(BlockScope scope, TypeBinding returnType) {

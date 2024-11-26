@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
 import org.eclipse.jdt.internal.core.dom.NaiveASTFlattener;
 
 /**
@@ -1069,42 +1068,18 @@ public abstract class ASTNode {
 
 	/**
 	 * Node type constant indicating a node of type
-	 * <code>StringTemplateExpression</code>.
-	 * @see org.eclipse.jdt.internal.compiler.ast.TemplateExpression
-	 * @since 3.37
-	 * @noreference This field is not intended to be referenced by clients.
-	 */
-	public static final int STRING_TEMPLATE_EXPRESSION = 114;
-	/**
-	 * Node type constant indicating a node of type
-	 * <code>StringFragment</code>.
-	 * @see org.eclipse.jdt.internal.compiler.ast.StringLiteral
-	 * @since 3.37
-	 * @noreference This field is not intended to be referenced by clients.
-	 */
-	public static final int STRING_FRAGMENT = 115;
-	/**
-	 * Node type constant indicating a node of type
-	 * <code>StringTemplateComponent</code>.
-	 * @since 3.37
-	 * @noreference This field is not intended to be referenced by clients.
-	 */
-	public static final int STRING_TEMPLATE_COMPONENT = 116;
-
-	/**
-	 * Node type constant indicating a node of type
 	 * <code>EitherOrMultiPattern</code>.
 	 * @since 3.38
 	 * @noreference This field is not intended to be referenced by clients.
 	 */
-	public static final int EitherOr_MultiPattern = 117;
+	public static final int EitherOr_MultiPattern = 114;
 
 	/**
 	 * @see ImplicitTypeDeclaration
 	 * @since 3.38
 	 * @noreference This field is not intended to be referenced by clients.
 	 */
-	public static final int UNNAMED_CLASS = 118;
+	public static final int UNNAMED_CLASS = 115;
 
 	/**
 	 * Returns the node class for the corresponding node type.
@@ -1344,12 +1319,6 @@ public abstract class ASTNode {
 				return WildcardType.class;
 			case YIELD_STATEMENT :
 				return YieldStatement.class;
-			case STRING_TEMPLATE_EXPRESSION :
-				return StringTemplateExpression.class;
-			case STRING_FRAGMENT :
-				return StringFragment.class;
-			case STRING_TEMPLATE_COMPONENT :
-				return StringTemplateComponent.class;
 			case EitherOr_MultiPattern:
 				return EitherOrMultiPattern.class;
 			case UNNAMED_CLASS :
@@ -2880,15 +2849,20 @@ public abstract class ASTNode {
 	/**
      * Begin lazy initialization of this node.
      * Here is the code pattern found in all AST
-     * node subclasses:
+     * node subclasses. For thread safety it uses a "double-checked locking idiom":
+     *
      * <pre>
-     * if (this.foo == null) {
-	 *    // lazy init must be thread-safe for readers
+     * private volatile ASTNode node; // has to be declared volatile and ASTNode has to be threadsafe!
+     * ...
+     * if (this.node == null) {
      *    synchronized (this) {
-     *       if (this.foo == null) {
+     *       if (this.node == null) { // double check
      *          preLazyInit();
-     *          this.foo = ...; // code to create new node
-     *          postLazyInit(this.foo, FOO_PROPERTY);
+     *          ASTNode node = ...; // code to create new node
+     *          node.xyz = ...; // initialize all fields
+     *          // Finally write the full initialized field:
+     *          this.node = postLazyInit(node, FOO_PROPERTY);
+     *          // Do not modify node after writing it to this.node!
      *       }
      *    }
      * }
@@ -2905,19 +2879,18 @@ public abstract class ASTNode {
 	/**
      * End lazy initialization of this node.
      *
-	 * @param newChild the new child of this node, or <code>null</code> if
-	 *   there is no replacement child
+	 * @param newChild the new child of this node
 	 * @param property the property descriptor of this node describing
      * the relationship between node and child
-     * @since 3.0
      */
-	final void postLazyInit(ASTNode newChild, ChildPropertyDescriptor property) {
+	final <T extends ASTNode> T postLazyInit(T newChild, ChildPropertyDescriptor property) {
 		// IMPORTANT: this method is called by readers
 		// ASTNode.this is locked at this point
 		// newChild is brand new (so no chance of concurrent access)
 		newChild.setParent(this, property);
 		// turn events back on (they were turned off in corresponding preLazyInit)
 		this.ast.reenableEvents();
+		return newChild;
 	}
 
 	/**

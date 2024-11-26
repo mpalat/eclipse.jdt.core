@@ -23,7 +23,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.eclipse.jdt.internal.compiler.CompilationResult;
@@ -34,18 +33,7 @@ import org.eclipse.jdt.internal.compiler.flow.FlowContext;
 import org.eclipse.jdt.internal.compiler.flow.FlowInfo;
 import org.eclipse.jdt.internal.compiler.impl.Constant;
 import org.eclipse.jdt.internal.compiler.impl.ReferenceContext;
-import org.eclipse.jdt.internal.compiler.lookup.Binding;
-import org.eclipse.jdt.internal.compiler.lookup.BlockScope;
-import org.eclipse.jdt.internal.compiler.lookup.FieldBinding;
-import org.eclipse.jdt.internal.compiler.lookup.LocalVariableBinding;
-import org.eclipse.jdt.internal.compiler.lookup.MethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.MethodScope;
-import org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
-import org.eclipse.jdt.internal.compiler.lookup.Scope;
-import org.eclipse.jdt.internal.compiler.lookup.TagBits;
-import org.eclipse.jdt.internal.compiler.lookup.TypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.TypeConstants;
-import org.eclipse.jdt.internal.compiler.lookup.TypeIds;
+import org.eclipse.jdt.internal.compiler.lookup.*;
 import org.eclipse.jdt.internal.compiler.problem.ProblemReporter;
 import org.eclipse.jdt.internal.compiler.util.Util;
 
@@ -252,8 +240,8 @@ public class FakedTrackingVariable extends LocalDeclaration {
 			else if (expression instanceof ConditionalExpression) {
 				return getMoreUnsafeFromBranches((ConditionalExpression)expression, flowInfo,
 										branch -> getCloseTrackingVariable(branch, flowInfo, flowContext, useAnnotations));
-			} else if (expression instanceof SwitchExpression) {
-				for (Expression re : ((SwitchExpression) expression).resultExpressions) {
+			} else if (expression instanceof SwitchExpression se) {
+				for (Expression re : se.resultExpressions()) {
 					FakedTrackingVariable fakedTrackingVariable = getCloseTrackingVariable(re, flowInfo, flowContext, useAnnotations);
 					if (fakedTrackingVariable != null) {
 						return fakedTrackingVariable;
@@ -356,7 +344,7 @@ public class FakedTrackingVariable extends LocalDeclaration {
 	}
 
 	private static boolean containsAllocation(SwitchExpression location) {
-		for (Expression re : location.resultExpressions) {
+		for (Expression re : location.resultExpressions()) {
 			if (containsAllocation(re))
 				return true;
 		}
@@ -403,7 +391,7 @@ public class FakedTrackingVariable extends LocalDeclaration {
 
 	private static void preConnectTrackerAcrossAssignment(ASTNode location, LocalVariableBinding local, FlowInfo flowInfo,
 			SwitchExpression se, FakedTrackingVariable closeTracker, boolean useAnnotations) {
-		for (Expression re : se.resultExpressions) {
+		for (Expression re : se.resultExpressions()) {
 			preConnectTrackerAcrossAssignment(location, local, flowInfo, closeTracker, re, useAnnotations);
 		}
 	}
@@ -430,13 +418,13 @@ public class FakedTrackingVariable extends LocalDeclaration {
 		if (flowInfo.reachMode() != FlowInfo.REACHABLE)
 			return;
 		// client has checked that the resolvedType is an AutoCloseable, hence the following cast is safe:
-		if (((ReferenceBinding)allocation.resolvedType).hasTypeBit(TypeIds.BitResourceFreeCloseable)) {
+		if (allocation.resolvedType.hasTypeBit(TypeIds.BitResourceFreeCloseable)) {
 			// remove unnecessary attempts (closeable is not relevant)
 			if (allocation.closeTracker != null) {
 				allocation.closeTracker.withdraw();
 				allocation.closeTracker = null;
 			}
-		} else if (((ReferenceBinding)allocation.resolvedType).hasTypeBit(TypeIds.BitWrapperCloseable)) {
+		} else if (allocation.resolvedType.hasTypeBit(TypeIds.BitWrapperCloseable)) {
 			boolean isWrapper = true;
 			if (allocation.arguments != null &&  allocation.arguments.length > 0) {
 				// find the wrapped resource represented by its tracking var:
@@ -511,7 +499,7 @@ public class FakedTrackingVariable extends LocalDeclaration {
 			return flowInfo;
 		}
 		// client has checked that the resolvedType is an AutoCloseable, hence the following cast is safe:
-		if (((ReferenceBinding)acquisition.resolvedType).hasTypeBit(TypeIds.BitResourceFreeCloseable)
+		if (acquisition.resolvedType.hasTypeBit(TypeIds.BitResourceFreeCloseable)
 				&& !isBlacklistedMethod(acquisition)) {
 			// remove unnecessary attempts (closeable is not relevant)
 			if (acquisition.closeTracker != null) {
@@ -556,11 +544,15 @@ public class FakedTrackingVariable extends LocalDeclaration {
 		if (binding.isStatic())
 			return false;
 		ReferenceBinding declaringClass = binding.declaringClass;
-		if (declaringClass.equals(binding.returnType)) {
-			for (char[][] compoundName : TypeConstants.FLUENT_RESOURCE_CLASSES) {
-				if (CharOperation.equals(compoundName, declaringClass.compoundName))
-					return true;
+		while (declaringClass != null) {
+			if (declaringClass.equals(binding.returnType)) {
+				for (char[][] compoundName : TypeConstants.FLUENT_RESOURCE_CLASSES) {
+					if (CharOperation.equals(compoundName, declaringClass.compoundName))
+						return true;
+				}
+				return false;
 			}
+			declaringClass = declaringClass.superclass();
 		}
 		return false;
 	}
@@ -893,9 +885,9 @@ public class FakedTrackingVariable extends LocalDeclaration {
 			return getMoreUnsafeFromBranches((ConditionalExpression) expression, flowInfo,
 						branch -> analyseCloseableExpression(scope, flowInfo, flowContext, useAnnotations,
 																local, location, branch, previousTracker));
-		} else if (expression instanceof SwitchExpression) {
+		} else if (expression instanceof SwitchExpression se) {
 			FakedTrackingVariable mostRisky = null;
-			for (Expression result : ((SwitchExpression) expression).resultExpressions) {
+			for (Expression result : se.resultExpressions()) {
 				FakedTrackingVariable current = analyseCloseableExpression(scope, flowInfo, flowContext, useAnnotations,
 						local, location, result, previousTracker);
 				if (mostRisky == null)
@@ -1093,7 +1085,7 @@ public class FakedTrackingVariable extends LocalDeclaration {
 	/** Answer wither the given type binding is a subtype of java.lang.AutoCloseable. */
 	public static boolean isAnyCloseable(TypeBinding typeBinding) {
 		return typeBinding instanceof ReferenceBinding
-			&& ((ReferenceBinding)typeBinding).hasTypeBit(TypeIds.BitAutoCloseable|TypeIds.BitCloseable);
+			&& typeBinding.hasTypeBit(TypeIds.BitAutoCloseable|TypeIds.BitCloseable);
 	}
 
 	/** Answer wither the given type binding is a subtype of java.lang.AutoCloseable. */

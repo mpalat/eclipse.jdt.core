@@ -22,66 +22,20 @@ import static org.junit.Assert.assertArrayEquals;
 
 import java.io.File;
 import java.io.IOException;
-
+import junit.framework.Test;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Path;
-import org.eclipse.jdt.core.Flags;
-import org.eclipse.jdt.core.ICompilationUnit;
-import org.eclipse.jdt.core.IField;
-import org.eclipse.jdt.core.IJavaElement;
-import org.eclipse.jdt.core.IJavaProject;
-import org.eclipse.jdt.core.ILocalVariable;
-import org.eclipse.jdt.core.IMethod;
-import org.eclipse.jdt.core.IOrdinaryClassFile;
-import org.eclipse.jdt.core.IPackageFragment;
-import org.eclipse.jdt.core.IProblemRequestor;
-import org.eclipse.jdt.core.ISourceRange;
-import org.eclipse.jdt.core.IType;
-import org.eclipse.jdt.core.ITypeParameter;
-import org.eclipse.jdt.core.ITypeRoot;
-import org.eclipse.jdt.core.JavaCore;
-import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.core.WorkingCopyOwner;
+import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.compiler.IProblem;
-import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.Annotation;
-import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
-import org.eclipse.jdt.core.dom.ArrayType;
-import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.IAnnotationBinding;
-import org.eclipse.jdt.core.dom.IBinding;
-import org.eclipse.jdt.core.dom.IMethodBinding;
-import org.eclipse.jdt.core.dom.IPackageBinding;
-import org.eclipse.jdt.core.dom.ITypeBinding;
-import org.eclipse.jdt.core.dom.IVariableBinding;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.NodeFinder;
-import org.eclipse.jdt.core.dom.ParameterizedType;
-import org.eclipse.jdt.core.dom.QualifiedName;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
-import org.eclipse.jdt.core.dom.SuperConstructorInvocation;
-import org.eclipse.jdt.core.dom.Type;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
-import org.eclipse.jdt.core.dom.TypeDeclarationStatement;
-import org.eclipse.jdt.core.dom.TypeParameter;
-import org.eclipse.jdt.core.dom.VariableDeclaration;
-import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
-import org.eclipse.jdt.core.dom.WildcardType;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.search.IJavaSearchConstants;
 import org.eclipse.jdt.core.search.IJavaSearchScope;
 import org.eclipse.jdt.core.search.SearchEngine;
 import org.eclipse.jdt.core.tests.model.AbstractJavaSearchTests;
 import org.eclipse.jdt.core.tests.util.Util;
+import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.core.Member;
-
-import junit.framework.Test;
 
 /*
  * Test the bridge between the DOM AST and the Java model.
@@ -160,10 +114,14 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 	}
 
 	private IBinding[] createBindings(String contents, IJavaElement element) throws JavaModelException {
+		return createBindings(contents, element, false);
+	}
+	private IBinding[] createBindings(String contents, IJavaElement element, boolean recoverBindings) throws JavaModelException {
 		this.workingCopy.getBuffer().setContents(contents);
 		this.workingCopy.makeConsistent(null);
 		ASTParser parser = ASTParser.newParser(JLS3_INTERNAL);
 		parser.setProject(getJavaProject("P"));
+		parser.setBindingsRecovery(recoverBindings);
 		IJavaElement[] elements = new IJavaElement[] {element};
 		return parser.createBindings(elements, null);
 	}
@@ -183,7 +141,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 	}
 
 	private void setUpJavaProject() throws CoreException, IOException, JavaModelException {
-		IJavaProject project = createJavaProject("P", new String[] {"src"}, new String[] {"JCL15_LIB,JCL15_SRC", "/P/lib"}, "bin", "1.5");
+		IJavaProject project = createJavaProject("P", new String[] {"src"}, new String[] {"JCL18_LIB,JCL18_SRC", "/P/lib"}, "bin", CompilerOptions.getFirstSupportedJavaVersion());
 		project.setOption(JavaCore.COMPILER_PB_UNUSED_LOCAL, JavaCore.IGNORE);
 		project.setOption(JavaCore.COMPILER_PB_UNUSED_PRIVATE_MEMBER, JavaCore.IGNORE);
 		project.setOption(JavaCore.COMPILER_PB_FIELD_HIDING, JavaCore.IGNORE);
@@ -238,7 +196,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 				"@interface MyAnnot {\n" +
 				"}",
 			},
-			"1.5");
+			CompilerOptions.getFirstSupportedJavaVersion());
 		setUpWorkingCopy();
 	}
 
@@ -664,7 +622,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IJavaElement element = binding.getJavaElement();
 		assertElementExists(
 			"Unexpected Java element",
-			"Object [in Object.class [in java.lang [in "+ getExternalJCLPathString("1.5") + "]]]",
+			"Object [in Object.class [in java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]]]",
 			element
 		);
 	}
@@ -694,7 +652,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 	 * (regression test for bug 91445 IMethodBinding.getJavaElement() returns an "unopen" IMethod)
 	 */
 	public void testBinaryMethod() throws JavaModelException {
-		IOrdinaryClassFile classFile = getClassFile("P", getExternalJCLPathString("1.5"), "java.lang", "Enum.class");
+		IOrdinaryClassFile classFile = getClassFile("P", getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()), "java.lang", "Enum.class");
 		String source = classFile.getSource();
 		MarkerInfo markerInfo = new MarkerInfo(source);
 		markerInfo.astStarts = new int[] {source.indexOf("protected Enum")};
@@ -704,7 +662,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IJavaElement element = binding.getJavaElement();
 		assertElementExists(
 			"Unexpected Java element",
-			"Enum(java.lang.String, int) [in Enum [in Enum.class [in java.lang [in "+ getExternalJCLPathString("1.5") + "]]]]",
+			"Enum(java.lang.String, int) [in Enum [in Enum.class [in java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]]]]",
 			element
 		);
 	}
@@ -729,7 +687,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 	 * Ensures that the IJavaElement of an IBinding representing a type coming from a class file is correct.
 	 */
 	public void testBinaryType() throws JavaModelException {
-		IOrdinaryClassFile classFile = getClassFile("P", getExternalJCLPathString("1.5"), "java.lang", "String.class");
+		IOrdinaryClassFile classFile = getClassFile("P", getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()), "java.lang", "String.class");
 		String source = classFile.getSource();
 		MarkerInfo markerInfo = new MarkerInfo(source);
 		markerInfo.astStarts = new int[] {source.indexOf("public")};
@@ -739,7 +697,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IJavaElement element = binding.getJavaElement();
 		assertElementExists(
 			"Unexpected Java element",
-			"String [in String.class [in java.lang [in "+ getExternalJCLPathString("1.5") + "]]]",
+			"String [in String.class [in java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]]]",
 			element
 		);
 	}
@@ -797,7 +755,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		try {
 			tearDownJavaProject();
 
-			createJavaProject("P1", new String[] {""}, new String[] {"JCL15_LIB"}, "", "1.5");
+			createJavaProject("P1", new String[] {""}, new String[] {"JCL18_LIB"}, "", CompilerOptions.getFirstSupportedJavaVersion());
 			createFile(
 				"/P1/X.java",
 				"public class X {\n" +
@@ -809,7 +767,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 			IJavaElement element = binding.getJavaElement();
 			assertElementExists(
 				"Unexpected Java element",
-				"String [in String.class [in java.lang [in "+ getExternalJCLPathString("1.5") + "]]]",
+				"String [in String.class [in java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]]]",
 				element
 			);
 		} finally {
@@ -887,7 +845,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IType typeX = this.workingCopies[0].getType("X");
 		IJavaElement[] elements = new IJavaElement[] {
 			typeX,
-			getClassFile("P", getExternalJCLPathString("1.5"), "java.lang", "Object.class").getType(),
+			getClassFile("P", getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()), "java.lang", "Object.class").getType(),
 			typeX.getMethod("foo", new String[] {"I", "QString;"}),
 			this.workingCopies[2].getType("I").getField("BAR"),
 			this.workingCopies[1].getType("Y").getMethod("bar", new String[0]).getType("", 1)
@@ -1175,6 +1133,22 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IBinding[] bindings = createBindings(
 			"public class X<T extends java.lang.Number> {\n" +
 			"}",
+			this.workingCopy.getType("X").getTypeParameter("T"),
+			true // recover bindings, java.lang.Number is missing from jclMin!
+		);
+		assertBindingsEqual(
+			"LX;:TT;",
+			bindings);
+	}
+
+	/*
+	 * Ensures that the correct IBindings are created for a given set of IJavaElement
+	 * (type parameter with bound)
+	 */
+	public void testCreateBindings14a2() throws JavaModelException {
+		IBinding[] bindings = createBindings(
+			"public class X<T extends java.lang.Exception> {\n" + // j.l.Exception is present
+			"}",
 			this.workingCopy.getType("X").getTypeParameter("T")
 		);
 		assertBindingsEqual(
@@ -1352,7 +1326,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		assertBindingsEqual(
 			"Lpack/package-info;",
 			bindings);
-		IAnnotationBinding[] annotations = ((ITypeBinding) bindings[0]).getAnnotations();
+		IAnnotationBinding[] annotations = bindings[0].getAnnotations();
 		assertBindingsEqual(
 			"@Ljava/lang/Deprecated;",
 			annotations);
@@ -1653,7 +1627,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		);
 		assertFindElement(
 			bindingKey,
-			"java.lang [in "+ getExternalJCLPathString("1.5") + "]"
+			"java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]"
 		);
 	}
 
@@ -2387,7 +2361,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IJavaElement element = binding.getJavaElement();
 		assertElementExists(
 			"Unexpected Java element",
-			"java.lang [in "+ getExternalJCLPathString("1.5") + "]",
+			"java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]",
 			element
 		);
 	}
@@ -2425,7 +2399,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IJavaElement element = binding.getJavaElement();
 		assertElementExists(
 			"Unexpected Java element",
-			"Comparable [in Comparable.class [in java.lang [in "+ getExternalJCLPathString("1.5") + "]]]",
+			"Comparable [in Comparable.class [in java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]]]",
 			element
 		);
 	}
@@ -2465,7 +2439,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IJavaElement element = binding.getJavaElement();
 		assertElementExists(
 			"Unexpected Java element",
-			"Comparable [in Comparable.class [in java.lang [in "+ getExternalJCLPathString("1.5") + "]]]",
+			"Comparable [in Comparable.class [in java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]]]",
 			element
 		);
 	}
@@ -2476,14 +2450,14 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 	 */
 	public void testRecoveredTypeBinding1() throws Exception {
 		try {
-			IJavaProject p = createJavaProject("P15", new String[] {""}, new String[] {"JCL15_LIB", "/P15/util.jar"}, "", "1.5");
+			IJavaProject p = createJavaProject("P15", new String[] {""}, new String[] {"JCL18_LIB", "/P15/util.jar"}, "", CompilerOptions.getFirstSupportedJavaVersion());
 			org.eclipse.jdt.core.tests.util.Util.createJar(new String[] {
 				"java/util/List.java",
 				"package java.util;\n" +
 				"public class List<T> {\n" +
 				"}"
 			}, p.getProject().getLocation() + File.separator + "util.jar",
-			"1.5");
+			CompilerOptions.getFirstSupportedJavaVersion());
 			p.getProject().refreshLocal(IResource.DEPTH_INFINITE, null);
 			createFile("/P15/X.java", "");
 			ASTNode node = buildAST(
@@ -2511,7 +2485,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 	 */
 	public void testRecoveredTypeBinding2() throws Exception {
 		try {
-			createJavaProject("P15", new String[] {""}, new String[] {"JCL15_LIB"}, "", "1.5");
+			createJavaProject("P15", new String[] {""}, new String[] {"JCL18_LIB"}, "", CompilerOptions.getFirstSupportedJavaVersion());
 			createFile("/P15/X.java", "");
 			ASTNode node = buildAST(
 				"public class X {\n" +
@@ -2590,7 +2564,7 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		IJavaElement element = binding.getJavaElement();
 		assertElementExists(
 			"Unexpected Java element",
-			"String [in String.class [in java.lang [in "+ getExternalJCLPathString("1.5") + "]]]",
+			"String [in String.class [in java.lang [in "+ getExternalJCLPathString(CompilerOptions.getFirstSupportedJavaVersion()) + "]]]",
 			element
 		);
 	}
@@ -2936,4 +2910,28 @@ public class ASTModelBridgeTests extends AbstractASTTests {
 		assertArrayEquals(new IMethod[] { secondMethod }, matchingMethods);
 	}
 
+	public void testSimilarMethodQualifiedInner() throws CoreException {
+		this.workingCopies = new ICompilationUnit[1];
+		this.workingCopies[0] = getWorkingCopy("/P/src/p1/CreateOverride.java",
+			"""
+				package p1;
+				class B1 {
+					class Inner {}
+				}
+				class B2 {}
+				public class CreateOverride {
+					static class A {
+						public void foo(B1 b1, B1.Inner inner, B2 b2) {}
+					}
+				}
+			""");
+		ASTParser parser = createASTParser();
+		parser.setResolveBindings(true);
+		parser.setBindingsRecovery(true);
+		parser.setSource(this.workingCopies[0]);
+		CompilationUnit dom = (CompilationUnit)parser.createAST(null);
+		MethodDeclaration methodDecl = (MethodDeclaration) NodeFinder.perform(dom, this.workingCopies[0].getSource().indexOf("foo"), "foo".length()).getParent();
+		IMethod sourceMethod = this.workingCopies[0].getType("CreateOverride").getType("A").getMethods()[0];
+		assertEquals(sourceMethod, methodDecl.resolveBinding().getMethodDeclaration().getJavaElement());
+	}
 }

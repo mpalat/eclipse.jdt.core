@@ -15,9 +15,7 @@
 package org.eclipse.jdt.internal.compiler.util;
 
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +35,6 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.internal.compiler.ClassFile;
 import org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
@@ -361,15 +358,6 @@ public class Util implements SuffixConstants {
 	}
 
 	/**
-	 * Returns the given bytes as a char array using a given encoding (null means platform default).
-	 */
-	public static char[] bytesToChar(byte[] bytes, String encoding) throws IOException {
-
-		return getInputStreamAsCharArray(new ByteArrayInputStream(bytes), encoding);
-
-	}
-
-	/**
 	 * Returns the outer most enclosing type's visibility for the given TypeDeclaration
 	 * and visibility based on compiler options.
 	 */
@@ -407,9 +395,7 @@ public class Util implements SuffixConstants {
 	 * @throws IOException if a problem occured reading the file.
 	 */
 	public static char[] getFileCharContent(File file, String encoding) throws IOException {
-		try (InputStream stream = new FileInputStream(file)) {
-			return getInputStreamAsCharArray(stream, encoding);
-		}
+		return org.eclipse.jdt.internal.compiler.util.Util.getBytesAsCharArray(Files.readAllBytes(file.toPath()), encoding);
 	}
 	private static FileOutputStream getFileOutputStream(boolean generatePackagesStructure, String outputPath, String relativeFileName) throws IOException {
 		if (generatePackagesStructure) {
@@ -450,7 +436,6 @@ public class Util implements SuffixConstants {
 		return input.readAllBytes(); // will have even slighly better performance as of JDK17+ see JDK-8264777
 	}
 
-
 	/**
 	 * Returns the given input stream's first bytes as array.
 	 * Note this doesn't close the stream.
@@ -477,6 +462,10 @@ public class Util implements SuffixConstants {
 			throws IOException {
 		byte[] byteContents =  getInputStreamAsByteArray(stream);
 
+		return getBytesAsCharArray(byteContents, encoding);
+	}
+
+	public static char[] getBytesAsCharArray(byte[] byteContents, String encoding) {
 		Charset charset;
 		try {
 			charset = Charset.forName(encoding);

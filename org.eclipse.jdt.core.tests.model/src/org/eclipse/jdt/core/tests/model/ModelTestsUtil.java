@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.StringTokenizer;
-
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.IWorkspaceRoot;
@@ -439,22 +438,6 @@ static public void setUpJCLClasspathVariables(String compliance) throws JavaMode
 			setupExternalJCL("jclMin1.8");
 			JavaCore.setClasspathVariables(
 				new String[] {"JCL18_LIB", "JCL18_SRC", "JCL_SRCROOT"},
-				new IPath[] {getExternalJCLPath(compliance), getExternalJCLSourcePath(compliance), getExternalJCLRootSourcePath()},
-				null);
-		}
-	} else if ("1.7".equals(compliance)) {
-		if (JavaCore.getClasspathVariable("JCL17_LIB") == null) {
-			setupExternalJCL("jclMin1.7");
-			JavaCore.setClasspathVariables(
-				new String[] {"JCL17_LIB", "JCL17_SRC", "JCL_SRCROOT"},
-				new IPath[] {getExternalJCLPath(compliance), getExternalJCLSourcePath(compliance), getExternalJCLRootSourcePath()},
-				null);
-		}
-	} else if ("1.5".equals(compliance)) {
-		if (JavaCore.getClasspathVariable("JCL15_LIB") == null) {
-			setupExternalJCL("jclMin1.5");
-			JavaCore.setClasspathVariables(
-				new String[] {"JCL15_LIB", "JCL15_SRC", "JCL_SRCROOT"},
 				new IPath[] {getExternalJCLPath(compliance), getExternalJCLSourcePath(compliance), getExternalJCLRootSourcePath()},
 				null);
 		}

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2020, 2023 IBM Corporation and others.
+ * Copyright (c) 2020, 2024 IBM Corporation and others.
  *
  * This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
@@ -15,35 +15,11 @@ package org.eclipse.jdt.core.tests.dom;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import junit.framework.Test;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.JavaCore;
-import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
-import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.GuardedPattern;
-import org.eclipse.jdt.core.dom.IfStatement;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.ParenthesizedExpression;
-import org.eclipse.jdt.core.dom.Pattern;
-import org.eclipse.jdt.core.dom.PatternInstanceofExpression;
-import org.eclipse.jdt.core.dom.RecordPattern;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
-import org.eclipse.jdt.core.dom.SwitchCase;
-import org.eclipse.jdt.core.dom.SwitchExpression;
-import org.eclipse.jdt.core.dom.SwitchStatement;
-import org.eclipse.jdt.core.dom.Type;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
-import org.eclipse.jdt.core.dom.TypePattern;
-import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
-import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
-
-import junit.framework.Test;
+import org.eclipse.jdt.core.dom.*;
 
 public class ASTConverter_RecordPattern_Test extends ConverterTestSetup {
 
@@ -559,5 +535,31 @@ public class ASTConverter_RecordPattern_Test extends ConverterTestSetup {
 		assertEquals("incorrect type", ASTNode.GUARDED_PATTERN, ((Expression)caseStmt.expressions().get(0)).getNodeType());
 		GuardedPattern guardedPattern = (GuardedPattern)caseStmt.expressions().get(0);
 		assertEquals("There should be 1 Record Pattern", ASTNode.RECORD_PATTERN , guardedPattern.getPattern().getNodeType());
+	}
+	public void testVisitPattern() {
+        class NodeFinder extends ASTVisitor {
+            PatternInstanceofExpression patternInstanceofExpression;
+            public boolean visit(PatternInstanceofExpression node) {
+                this.patternInstanceofExpression = node;
+                return super.visit(node);
+            }
+        }
+        String content = """
+        		public class Foo {
+        			static boolean checkCollisionIfs(Object p1, Object p2) {
+        				if (p1 instanceof Point(int x1, int y1)) {
+        					return x1 == x2 && y1 == y2;
+        				}
+        			}
+        			record Point(int x, int y) {}
+        			record ColoredPoint(Point T, String color) {}
+        			record Decorator(Object obj) {}}""";
+
+        ASTParser parser = ASTParser.newParser(AST.JLS21);
+        parser.setSource(content.toCharArray());
+        CompilationUnit cunit = (CompilationUnit) parser.createAST(null);
+        NodeFinder astVisitor = new NodeFinder();
+        cunit.accept(astVisitor);
+        assertEquals("Wrong node", "p1 instanceof Point(int x1, int y1)", astVisitor.patternInstanceofExpression.toString());
 	}
 }

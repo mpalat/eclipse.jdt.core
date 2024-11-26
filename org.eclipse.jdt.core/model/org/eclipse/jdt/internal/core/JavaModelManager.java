@@ -25,37 +25,12 @@
  *******************************************************************************/
 package org.eclipse.jdt.internal.core;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.StringReader;
+import java.io.*;
 import java.net.URI;
 import java.text.MessageFormat;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
@@ -63,42 +38,10 @@ import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.stream.Collectors;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
-
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.ParserConfigurationException;
-
-import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IFolder;
-import org.eclipse.core.resources.IProject;
-import org.eclipse.core.resources.IResource;
-import org.eclipse.core.resources.IResourceChangeEvent;
-import org.eclipse.core.resources.ISaveContext;
-import org.eclipse.core.resources.ISaveParticipant;
-import org.eclipse.core.resources.ISavedState;
-import org.eclipse.core.resources.IWorkspace;
-import org.eclipse.core.resources.IWorkspaceDescription;
-import org.eclipse.core.resources.IWorkspaceRoot;
-import org.eclipse.core.resources.IWorkspaceRunnable;
-import org.eclipse.core.resources.ResourcesPlugin;
-import org.eclipse.core.resources.WorkspaceJob;
-import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IConfigurationElement;
-import org.eclipse.core.runtime.IExtension;
-import org.eclipse.core.runtime.IExtensionPoint;
-import org.eclipse.core.runtime.IPath;
-import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.ISafeRunnable;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.MultiStatus;
-import org.eclipse.core.runtime.OperationCanceledException;
-import org.eclipse.core.runtime.Path;
-import org.eclipse.core.runtime.PerformanceStats;
-import org.eclipse.core.runtime.Platform;
-import org.eclipse.core.runtime.Plugin;
-import org.eclipse.core.runtime.QualifiedName;
-import org.eclipse.core.runtime.SafeRunner;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.SubMonitor;
+import org.eclipse.core.resources.*;
+import org.eclipse.core.runtime.*;
 import org.eclipse.core.runtime.content.IContentTypeManager;
 import org.eclipse.core.runtime.content.IContentTypeManager.ContentTypeChangeEvent;
 import org.eclipse.core.runtime.content.IContentTypeManager.IContentTypeChangeListener;
@@ -108,28 +51,7 @@ import org.eclipse.core.runtime.preferences.IEclipsePreferences;
 import org.eclipse.core.runtime.preferences.IEclipsePreferences.PreferenceChangeEvent;
 import org.eclipse.core.runtime.preferences.IPreferencesService;
 import org.eclipse.core.runtime.preferences.InstanceScope;
-import org.eclipse.jdt.core.ClasspathContainerInitializer;
-import org.eclipse.jdt.core.IAccessRule;
-import org.eclipse.jdt.core.IClassFile;
-import org.eclipse.jdt.core.IClasspathAttribute;
-import org.eclipse.jdt.core.IClasspathContainer;
-import org.eclipse.jdt.core.IClasspathEntry;
-import org.eclipse.jdt.core.ICompilationUnit;
-import org.eclipse.jdt.core.IJavaElement;
-import org.eclipse.jdt.core.IJavaModel;
-import org.eclipse.jdt.core.IJavaModelStatus;
-import org.eclipse.jdt.core.IJavaModelStatusConstants;
-import org.eclipse.jdt.core.IJavaProject;
-import org.eclipse.jdt.core.IPackageFragment;
-import org.eclipse.jdt.core.IPackageFragmentRoot;
-import org.eclipse.jdt.core.IParent;
-import org.eclipse.jdt.core.IProblemRequestor;
-import org.eclipse.jdt.core.IType;
-import org.eclipse.jdt.core.ITypeRoot;
-import org.eclipse.jdt.core.JavaConventions;
-import org.eclipse.jdt.core.JavaCore;
-import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.core.WorkingCopyOwner;
+import org.eclipse.jdt.core.*;
 import org.eclipse.jdt.core.JavaCore.JavaCallable;
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.core.compiler.CompilationParticipant;
@@ -454,7 +376,9 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 					try {
 						iProject.touch(subMonitor.split(1));
 					} catch (CoreException e) {
-						Util.log(e, "Could not touch project " + iProject.getName()); //$NON-NLS-1$
+						if (e.getStatus().getCode() != IResourceStatus.RESOURCE_NOT_FOUND) {
+							Util.log(e, "Could not touch project " + iProject.getName()); //$NON-NLS-1$
+						}
 					}
 				}
 				return true;
@@ -464,7 +388,7 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 
 		@Override
 		public boolean belongsTo(Object family) {
-			return ResourcesPlugin.FAMILY_MANUAL_REFRESH == family;
+			return ResourcesPlugin.FAMILY_MANUAL_REFRESH == family || JavaModelManager.class == family;
 		}
 	}
 
@@ -1242,9 +1166,9 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 	}
 
 	/**
-	 * The singleton manager
+	 * The current JavaModelManager. Normally a singleton but alternating during junit tests
 	 */
-	private static JavaModelManager MANAGER= new JavaModelManager();
+	private static volatile JavaModelManager MANAGER= new JavaModelManager();
 
 	/**
 	 * Infos cache.
@@ -1357,34 +1281,31 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 
 		static final IJavaModelStatus NEED_RESOLUTION = new JavaModelStatus();
 
-		public IProject project;
-		public Object savedState;
-		public boolean triedRead;
-		public IClasspathEntry[] rawClasspath;
-		public IClasspathEntry[] referencedEntries;
-		public IJavaModelStatus rawClasspathStatus;
-		public int rawTimeStamp = 0;
-		public boolean writtingRawClasspath = false;
-		public IClasspathEntry[] resolvedClasspath;
-		public IJavaModelStatus unresolvedEntryStatus;
-		public Map<IPath, IClasspathEntry> rootPathToRawEntries; // reverse map from a package fragment root's path to the raw entry
-		public Map<IPath, IClasspathEntry> rootPathToResolvedEntries; // map from a package fragment root's path to the resolved entry
-		public IPath outputLocation;
-		public Map<IPath, ObjectVector> jrtRoots; // A map between a JRT file system (as a string) and the package fragment roots found in it.
+		public final IProject project;
+		public volatile Object savedState;
+		public volatile boolean triedRead;
+		public volatile IClasspathEntry[] rawClasspath;
+		public volatile IClasspathEntry[] referencedEntries;
+		public volatile IJavaModelStatus rawClasspathStatus;
+		public volatile int rawTimeStamp;
+		public volatile boolean writtingRawClasspath;
+		public volatile IClasspathEntry[] resolvedClasspath;
+		public volatile IJavaModelStatus unresolvedEntryStatus;
+		public volatile Map<IPath, IClasspathEntry> rootPathToRawEntries; // reverse map from a package fragment root's path to the raw entry
+		private Map<IPath, IClasspathEntry> rootPathToResolvedEntries; // map from a package fragment root's path to the resolved entry
+		public volatile IPath outputLocation;
+		public volatile Map<IPath, ObjectVector> jrtRoots; // A map between a JRT file system (as a string) and the package fragment roots found in it.
 
-		public IEclipsePreferences preferences;
-		public Hashtable<String, String> options;
+		public volatile IEclipsePreferences preferences;
+		public volatile Hashtable<String, String> options;
 
 		private final SecondaryTypes secondaryTypes;
 
 		// NB: PackageFragment#getAttachedJavadoc uses this map differently
 		// and stores String data, not JavadocContents as values
-		public LRUCache<IJavaElement, Object> javadocCache;
+		public volatile LRUCache<IJavaElement, Object> javadocCache;
 
 		public PerProjectInfo(IProject project) {
-
-			this.triedRead = false;
-			this.savedState = null;
 			this.project = project;
 			this.javadocCache = new LRUCache<>(JAVADOC_CACHE_INITIAL_SIZE);
 			this.secondaryTypes = new SecondaryTypes();
@@ -1394,6 +1315,14 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 			if (this.unresolvedEntryStatus == NEED_RESOLUTION)
 				return null;
 			return this.resolvedClasspath;
+		}
+
+		public synchronized Map<IPath, IClasspathEntry> getRootPathToResolvedEntries() {
+			Map<IPath, IClasspathEntry> entries = this.rootPathToResolvedEntries;
+			if (entries == null) {
+				return Map.of();
+			}
+			return entries;
 		}
 
 		public void forgetExternalTimestampsAndIndexes() {
@@ -1453,16 +1382,18 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 			}
 			ClasspathChange classpathChange = addClasspathChange ? addClasspathChange() : null;
 
-			if (referencedEntries != null)	this.referencedEntries = referencedEntries;
-			if (this.referencedEntries == null) this.referencedEntries = ClasspathEntry.NO_ENTRIES;
-			this.rawClasspath = newRawClasspath;
-			this.outputLocation = newOutputLocation;
-			this.rawClasspathStatus = newRawClasspathStatus;
-			this.resolvedClasspath = newResolvedClasspath;
-			this.rootPathToRawEntries = newRootPathToRawEntries;
-			this.rootPathToResolvedEntries = newRootPathToResolvedEntries;
-			this.unresolvedEntryStatus = newUnresolvedEntryStatus;
-			this.javadocCache = new LRUCache<>(JAVADOC_CACHE_INITIAL_SIZE);
+			synchronized (this) {
+				if (referencedEntries != null)	this.referencedEntries = referencedEntries;
+				if (this.referencedEntries == null) this.referencedEntries = ClasspathEntry.NO_ENTRIES;
+				this.rawClasspath = newRawClasspath;
+				this.outputLocation = newOutputLocation;
+				this.rawClasspathStatus = newRawClasspathStatus;
+				this.resolvedClasspath = newResolvedClasspath;
+				this.rootPathToRawEntries = newRootPathToRawEntries;
+				this.rootPathToResolvedEntries = newRootPathToResolvedEntries;
+				this.unresolvedEntryStatus = newUnresolvedEntryStatus;
+				this.javadocCache = new LRUCache<>(JAVADOC_CACHE_INITIAL_SIZE);
+			}
 
 			return classpathChange;
 		}
@@ -1624,8 +1555,8 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 
 	public static class PerWorkingCopyInfo implements IProblemRequestor {
 		int useCount = 0;
-		IProblemRequestor problemRequestor;
-		CompilationUnit workingCopy;
+		private final IProblemRequestor problemRequestor;
+		final CompilationUnit workingCopy;
 		public PerWorkingCopyInfo(CompilationUnit workingCopy, IProblemRequestor problemRequestor) {
 			this.workingCopy = workingCopy;
 			this.problemRequestor = problemRequestor;
@@ -1666,7 +1597,7 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 		public String toString() {
 			StringBuilder buffer = new StringBuilder();
 			buffer.append("Info for "); //$NON-NLS-1$
-			buffer.append(((JavaElement)this.workingCopy).toStringWithAncestors());
+			buffer.append(this.workingCopy.toStringWithAncestors());
 			buffer.append("\nUse count = "); //$NON-NLS-1$
 			buffer.append(this.useCount);
 			buffer.append("\nProblem requestor:\n  "); //$NON-NLS-1$
@@ -2229,7 +2160,8 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 				continue;
 
 			IClasspathEntry persistedEntry = null;
-			if ((persistedEntry = perProjectInfo.rootPathToResolvedEntries.get(referencedEntries[index].getPath())) != null) {
+			Map<IPath, IClasspathEntry> rootPathToResolvedEntries = perProjectInfo.getRootPathToResolvedEntries();
+			if ((persistedEntry = rootPathToResolvedEntries.get(referencedEntries[index].getPath())) != null) {
 				// TODO: reconsider this - may want to copy the values instead of reference assignment?
 				referencedEntries[index] = persistedEntry;
 			}
@@ -2873,27 +2805,23 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 	}
 
 	public static UserLibraryManager getUserLibraryManager() {
-		if (MANAGER.userLibraryManager == null) {
-			UserLibraryManager libraryManager = new UserLibraryManager();
-			synchronized(MANAGER) {
-				if (MANAGER.userLibraryManager == null) { // ensure another library manager was not set while creating the instance above
-					MANAGER.userLibraryManager = libraryManager;
-				}
+		JavaModelManager m = MANAGER;
+		synchronized(m) {
+			if (m.userLibraryManager != null) {
+				return m.userLibraryManager;
 			}
+			return (m.userLibraryManager = new UserLibraryManager());
 		}
-		return MANAGER.userLibraryManager;
 	}
 
 	public static ModuleSourcePathManager getModulePathManager() {
-		if (MANAGER.modulePathManager == null) {
-			ModuleSourcePathManager modulePathManager = new ModuleSourcePathManager();
-			synchronized(MANAGER) {
-				if (MANAGER.modulePathManager == null) { // ensure another library manager was not set while creating the instance above
-					MANAGER.modulePathManager = modulePathManager;
-				}
+		JavaModelManager m = MANAGER;
+		synchronized(m) {
+			if (m.modulePathManager != null) {
+				return m.modulePathManager;
 			}
+			return (m.modulePathManager = new ModuleSourcePathManager());
 		}
-		return MANAGER.modulePathManager;
 	}
 	/*
 	 * Returns all the working copies which have the given owner.
@@ -5576,6 +5504,7 @@ public class JavaModelManager implements ISaveParticipant, IContentTypeChangeLis
 
 		// wait for the initialization job to finish
 		try {
+			Job.getJobManager().wakeUp(JavaCore.PLUGIN_ID);
 			Job.getJobManager().join(JavaCore.PLUGIN_ID, null);
 		} catch (InterruptedException e) {
 			// ignore

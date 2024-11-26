@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
 import org.eclipse.jdt.internal.compiler.ast.FunctionalExpression;
 import org.eclipse.jdt.internal.compiler.ast.LambdaExpression;
 import org.eclipse.jdt.internal.compiler.ast.ReferenceExpression;
@@ -44,6 +43,10 @@ public class ConstraintExceptionFormula extends ConstraintFormula {
 
 	@Override
 	public Object reduce(InferenceContext18 inferenceContext) {
+		if ((this.right.tagBits & TagBits.HasMissingType) != 0) {
+			inferenceContext.hasIgnoredMissingType = true;
+			return TRUE;
+		}
 		// JLS 18.2.5
 		Scope scope = inferenceContext.scope;
 		if (!this.right.isFunctionalInterface(scope))

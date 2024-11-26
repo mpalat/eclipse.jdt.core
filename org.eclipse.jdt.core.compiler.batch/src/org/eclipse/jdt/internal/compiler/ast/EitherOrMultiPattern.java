@@ -21,6 +21,7 @@ import org.eclipse.jdt.internal.compiler.flow.FlowContext;
 import org.eclipse.jdt.internal.compiler.flow.FlowInfo;
 import org.eclipse.jdt.internal.compiler.lookup.BlockScope;
 import org.eclipse.jdt.internal.compiler.lookup.LocalVariableBinding;
+import org.eclipse.jdt.internal.compiler.lookup.Scope;
 import org.eclipse.jdt.internal.compiler.lookup.TypeBinding;
 
 public class EitherOrMultiPattern extends Pattern {
@@ -51,6 +52,13 @@ public class EitherOrMultiPattern extends Pattern {
 	public void setIsGuarded() {
 		for (int i = 0; i < this.patternsCount; i++)
 			this.patterns[i].setIsGuarded();
+	}
+
+	@Override
+	public void setOuterExpressionType(TypeBinding expressionType) {
+		super.setOuterExpressionType(expressionType);
+		for (int i = 0; i < this.patternsCount; i++)
+			this.patterns[i].setOuterExpressionType(expressionType);
 	}
 
 	@Override
@@ -109,11 +117,11 @@ public class EitherOrMultiPattern extends Pattern {
 	}
 
 	@Override
-	public boolean coversType(TypeBinding type) {
+	public boolean coversType(TypeBinding type, Scope scope) {
 		if (!isUnguarded())
 			return false;
 		for (Pattern p : this.patterns) {
-			if (p.coversType(type))
+			if (p.coversType(type, scope))
 				return true;
 		}
 		return false;

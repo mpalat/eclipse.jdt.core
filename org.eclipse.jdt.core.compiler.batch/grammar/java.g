@@ -57,8 +57,6 @@ $Terminals
 	CharacterLiteral
 	StringLiteral
 	TextBlock
-	StringTemplate
-	TextBlockTemplate
 
 	PLUS_PLUS
 	MINUS_MINUS
@@ -116,12 +114,12 @@ $Terminals
 	ElidedSemicolonAndRightBrace
 	AT308
 	AT308DOTDOTDOT
-	BeginCaseExpr
+	CaseArrow
 	RestrictedIdentifierYield
 	RestrictedIdentifierrecord
 	RestrictedIdentifiersealed
 	RestrictedIdentifierpermits
-	BeginCaseElement
+	BeginCasePattern
 	RestrictedIdentifierWhen
 	UNDERSCORE
 
@@ -228,14 +226,11 @@ Goal ::= '(' ParenthesizedCastNameAndBounds
 Goal ::= '<' ReferenceExpressionTypeArgumentsAndTrunk
 -- JSR 308 Reconnaissance mission.
 Goal ::= '@' TypeAnnotations
--- JSR 354 Reconnaissance mission.
-Goal ::= '->' YieldStatement
-Goal ::= '->' SwitchLabelCaseLhs
--- JSR 360 Restricted
+-- JEP 409 Sealed types Reconnaissance mission.
 Goal ::= RestrictedIdentifiersealed Modifiersopt
-Goal ::= RestrictedIdentifierpermits PermittedSubclasses
+Goal ::= RestrictedIdentifierpermits PermittedTypes
 -- jsr 427 --
-Goal ::= BeginCaseElement Pattern
+Goal ::= BeginCasePattern Pattern
 Goal ::= RestrictedIdentifierWhen Expression
 /:$readableName Goal:/
 
@@ -702,7 +697,7 @@ ClassDeclaration ::= ClassHeader ClassBody
 /.$putCase consumeClassDeclaration(); $break ./
 /:$readableName ClassDeclaration:/
 
-ClassHeader ::= ClassHeaderName ClassHeaderExtendsopt ClassHeaderImplementsopt ClassHeaderPermittedSubclassesopt
+ClassHeader ::= ClassHeaderName ClassHeaderExtendsopt ClassHeaderImplementsopt PermittedTypesopt
 /.$putCase consumeClassHeader(); $break ./
 /:$readableName ClassHeader:/
 
@@ -1056,7 +1051,7 @@ InterfaceDeclaration ::= InterfaceHeader InterfaceBody
 /.$putCase consumeInterfaceDeclaration(); $break ./
 /:$readableName InterfaceDeclaration:/
 
-InterfaceHeader ::= InterfaceHeaderName InterfaceHeaderExtendsopt InterfaceHeaderPermittedSubClassesAndSubInterfacesopt
+InterfaceHeader ::= InterfaceHeaderName InterfaceHeaderExtendsopt PermittedTypesopt
 /.$putCase consumeInterfaceHeader(); $break ./
 /:$readableName InterfaceHeader:/
 
@@ -1308,33 +1303,6 @@ ComponentPattern -> UnnamedPattern
 -----------------------------------------------
 -- 20 preview feature : end of record patterns
 -----------------------------------------------
------------------------------------------------
--- 21 preview feature : String templates
------------------------------------------------
-
-PrimaryNoNewArray -> StringTemplateExpression
-
-TemplateArgument -> StringLiteral
-TemplateArgument -> TextBlock
-TemplateArgument -> StringTemplate
-TemplateArgument -> TextBlockTemplate
-
-StringTemplateExpression ::= Name '.' TemplateArgument
-/.$putCase consumeTemplateExpressionWithName(); $break ./
-/:$readableName TemplateExpression:/
-/:$compliance 21:/
-
-StringTemplateExpression ::= Primary '.' TemplateArgument
-/.$putCase consumeTemplateExpressionWithPrimary(); $break ./
-/:$readableName TemplateExpression:/
-/:$compliance 21:/
-
---TemplateProcessor ::= Expression
---/:$compliance 21:/
-
------------------------------------------------
--- 21 preview feature : end of String templates
------------------------------------------------
 
 UnnamedPattern ::= '_'
 /.$putCase consumeUnnamedPattern(); $break ./
@@ -1520,16 +1488,16 @@ IfThenElseStatementNoShortIf ::= 'if' '(' Expression ')' PostExpressionInIf Stat
 /:$readableName IfStatement:/
 
 SwitchStatement ::= 'switch' '(' Expression ')' PostExpressionInSwitchStatement OpenBlock SwitchBlock
-/.$putCase consumeStatementSwitch() ; $break ./
+/.$putCase consumeSwitchStatementOrExpression(true) ; $break ./
 /:$readableName SwitchStatement:/
 
 SwitchBlock ::= '{' '}'
-/.$putCase consumeEmptySwitchBlock() ; $break ./
+/.$putCase consumeSwitchBlock(false) ; $break ./
 
-SwitchBlock ::= '{' SwitchBlockStatements '}'
-SwitchBlock ::= '{' SwitchLabels '}'
+SwitchBlock -> '{' SwitchBlockStatements '}'
+SwitchBlock -> '{' SwitchLabels '}'
 SwitchBlock ::= '{' SwitchBlockStatements SwitchLabels '}'
-/.$putCase consumeSwitchBlock() ; $break ./
+/.$putCase consumeSwitchBlock(true) ; $break ./
 /:$readableName SwitchBlock:/
 
 SwitchBlockStatements -> SwitchBlockStatement
@@ -1537,20 +1505,24 @@ SwitchBlockStatements ::= SwitchBlockStatements SwitchBlockStatement
 /.$putCase consumeSwitchBlockStatements() ; $break ./
 /:$readableName SwitchBlockStatements:/
 
-SwitchBlockStatement -> SwitchLabeledRule
+SwitchBlockStatement -> SwitchRule
 SwitchBlockStatement ::= SwitchLabels BlockStatements
 /.$putCase consumeSwitchBlockStatement() ; $break ./
 /:$readableName SwitchBlockStatement:/
 
-SwitchLabels -> SwitchLabel
-SwitchLabels ::= SwitchLabels SwitchLabel
-/.$putCase consumeSwitchLabels() ; $break ./
-/:$readableName SwitchLabels:/
+SwitchLabels ::= SwitchLabel ':'
+/.$putCase consumeSwitchLabels(false, false) ; $break ./
+SwitchLabels ::= SwitchLabels SwitchLabel ':'
+/.$putCase consumeSwitchLabels(true, false) ; $break ./
+/:$readableName SwitchLabel:/
 
-SwitchLabel ::= SwitchLabelCaseLhs ':'
-/. $putCase consumeCaseLabel(); $break ./
+PostCaseArrow ::= $empty
+/.$putCase consumeSwitchLabels(false, true) ; $break ./
 
-SwitchLabel ::= 'default' ':'
+SwitchLabel -> 'case' CaseLabelElements
+/:$readableName SwitchLabel:/
+
+SwitchLabel ::= 'default'
 /. $putCase consumeDefaultLabel(); $break ./
 /:$readableName SwitchLabel:/
 
@@ -1560,38 +1532,20 @@ UnaryExpressionNotPlusMinus -> SwitchExpression
 UnaryExpressionNotPlusMinus_NotName -> SwitchExpression
 
 SwitchExpression ::= 'switch' '(' Expression ')' PostExpressionInSwitchExpression OpenBlock SwitchBlock
-/.$putCase consumeSwitchExpression() ; $break ./
+/.$putCase consumeSwitchStatementOrExpression(false) ; $break ./
 /:$readableName SwitchExpression:/
 
-SwitchLabeledRule ::= SwitchLabeledExpression
-SwitchLabeledRule ::= SwitchLabeledBlock
-SwitchLabeledRule ::= SwitchLabeledThrowStatement
-/. $putCase consumeSwitchLabeledRule(); $break ./
-/:$readableName SwitchLabeledRule:/
+SwitchRule ::= SwitchLabel CaseArrow PostCaseArrow Expression ';'
+/. $putCase consumeSwitchRule(SwitchRuleKind.EXPRESSION); $break ./
+/:$readableName SwitchRule:/
 
-SwitchLabeledExpression ::= SwitchLabelExpr Expression ';'
-/. $putCase consumeSwitchLabeledExpression(); $break ./
-/:$readableName SwitchLabeledExpression:/
+SwitchRule ::= SwitchLabel CaseArrow PostCaseArrow Block
+/. $putCase consumeSwitchRule(SwitchRuleKind.BLOCK); $break ./
+/:$readableName SwitchRule:/
 
-SwitchLabeledBlock ::= SwitchLabelExpr Block
-/. $putCase consumeSwitchLabeledBlock(); $break ./
-/:$readableName SwitchLabeledBlock:/
-
-SwitchLabeledThrowStatement ::= SwitchLabelExpr ThrowExpression ';'
-/. $putCase consumeSwitchLabeledThrowStatement(); $break ./
-/:$readableName SwitchLabeledThrowStatement:/
-
-SwitchLabelExpr ::= 'default'  '->'
-/. $putCase consumeDefaultLabelExpr(); $break ./
-/:$readableName SwitchLabelDefaultExpr:/
-
-SwitchLabelExpr ::= SwitchLabelCaseLhs BeginCaseExpr '->'
-/. $putCase consumeCaseLabelExpr(); $break ./
-/:$readableName SwitchLabelExpr:/
-
-SwitchLabelCaseLhs ::= 'case' CaseLabelElements
-/. $putCase consumeSwitchLabelCaseLhs(); $break ./
-/:$readableName SwitchLabelCaseLhs:/
+SwitchRule ::= SwitchLabel CaseArrow PostCaseArrow ThrowStatement
+/. $putCase consumeSwitchRule(SwitchRuleKind.THROW); $break ./
+/:$readableName SwitchRule:/
 
 -- END SwitchExpression (JEP 325) --
 
@@ -1620,7 +1574,7 @@ CaseLabelElement ::=  CaseLabelElementPattern Guard
 /.$putCase consumeCaseLabelElement(CaseLabelKind.CASE_PATTERN); $break ./
 /:$readableName CaseLabelElement:/
 
-CaseLabelElementPattern -> BeginCaseElement Pattern
+CaseLabelElementPattern -> BeginCasePattern Pattern
 /:$readableName CaseLabelElementPattern:/
 
 Guard ::= RestrictedIdentifierWhen Expression
@@ -1697,10 +1651,6 @@ ReturnStatement ::= 'return' Expressionopt ';'
 ThrowStatement ::= 'throw' Expression ';'
 /.$putCase consumeStatementThrow(); $break ./
 /:$readableName ThrowStatement:/
-
-ThrowExpression ::= 'throw' Expression
-/.$putCase consumeThrowExpression() ; $break ./
-/:$readableName ThrowExpression:/
 
 SynchronizedStatement ::= OnlySynchronized '(' Expression ')' Block
 /.$putCase consumeStatementSynchronized(); $break ./
@@ -2412,29 +2362,15 @@ ClassHeaderImplementsopt ::= $empty
 ClassHeaderImplementsopt -> ClassHeaderImplements
 /:$readableName ClassHeaderImplements:/
 
-ClassHeaderPermittedSubclassesopt ::= $empty
-ClassHeaderPermittedSubclassesopt -> ClassHeaderPermittedSubclasses
-/:$readableName ClassHeaderPermittedSubclasses:/
-/:$compliance 15:/
+-- Production name hardcoded in scanner. Must be ::= and not ->
+PermittedTypes ::= ClassTypeList
+/:$readableName PermittedTypes:/
 
--- Production name hardcoded in parser. Must be ::= and not ->
-PermittedSubclasses ::= ClassTypeList
-/:$readableName PermittedSubclasses:/
-
-ClassHeaderPermittedSubclasses ::= RestrictedIdentifierpermits ClassTypeList
-/.$putCase consumeClassHeaderPermittedSubclasses(); $break ./
-/:$readableName ClassHeaderPermittedSubclasses:/
-/:$compliance 15:/
-
-InterfaceHeaderPermittedSubClassesAndSubInterfacesopt ::= $empty
-InterfaceHeaderPermittedSubClassesAndSubInterfacesopt -> InterfaceHeaderPermittedSubClassesAndSubInterfaces
-/:$readableName InterfaceHeaderPermittedSubClassesAndSubInterfaces:/
-/:$compliance 15:/
-
-InterfaceHeaderPermittedSubClassesAndSubInterfaces ::= RestrictedIdentifierpermits ClassTypeList
-/.$putCase consumeInterfaceHeaderPermittedSubClassesAndSubInterfaces(); $break ./
-/:$readableName InterfaceHeaderPermittedSubClassesAndSubInterfaces:/
-/:$compliance 15:/
+PermittedTypesopt -> $empty
+PermittedTypesopt ::= RestrictedIdentifierpermits ClassTypeList
+/.$putCase consumePermittedTypes(); $break ./
+/:$readableName PermittedTypesopt:/
+/:$compliance 17:/
 
 InterfaceMemberDeclarationsopt ::= $empty
 /. $putCase consumeEmptyInterfaceMemberDeclarationsopt(); $break ./
@@ -2575,6 +2511,21 @@ StaticImportOnDemandDeclarationName ::= 'import' 'static' Name '.' RejectTypeAnn
 /.$putCase consumeStaticImportOnDemandDeclarationName(); $break ./
 /:$readableName StaticImportOnDemandDeclarationName:/
 /:$compliance 1.5:/
+
+-----------------------------------------------
+-- 23 preview feature (JEP 476: Module Import Declarations)
+-----------------------------------------------
+ImportDeclaration -> SingleModuleImportDeclaration
+
+SingleModuleImportDeclaration ::= SingleModuleImportDeclarationName ';'
+/.$putCase consumeImportDeclaration(); $break ./
+/:$readableName SingleModuleImportDeclaration:/
+/:$compliance 23:/
+
+SingleModuleImportDeclarationName ::= 'import' 'module' Name RejectTypeAnnotations
+/.$putCase consumeSingleModuleImportDeclarationName(); $break ./
+/:$readableName SingleModuleImportDeclarationName:/
+/:$compliance 23:/
 
 -----------------------------------------------
 -- 1.5 features : generics
@@ -3219,4 +3170,3 @@ UNDERSCORE ::= '_'
 
 $end
 -- need a carriage return after the $end
-

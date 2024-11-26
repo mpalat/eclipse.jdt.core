@@ -51,9 +51,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.eclipse.jdt.core.compiler.CategorizedProblem;
 import org.eclipse.jdt.core.compiler.CharOperation;
 import org.eclipse.jdt.internal.compiler.ASTVisitor;
@@ -70,36 +70,9 @@ import org.eclipse.jdt.internal.compiler.flow.UnconditionalFlowInfo;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.compiler.impl.Constant;
 import org.eclipse.jdt.internal.compiler.impl.ReferenceContext;
-import org.eclipse.jdt.internal.compiler.lookup.AnnotationBinding;
-import org.eclipse.jdt.internal.compiler.lookup.Binding;
-import org.eclipse.jdt.internal.compiler.lookup.BlockScope;
-import org.eclipse.jdt.internal.compiler.lookup.ClassScope;
-import org.eclipse.jdt.internal.compiler.lookup.ExtraCompilerModifiers;
-import org.eclipse.jdt.internal.compiler.lookup.InferenceContext18;
-import org.eclipse.jdt.internal.compiler.lookup.IntersectionTypeBinding18;
-import org.eclipse.jdt.internal.compiler.lookup.LocalTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.LocalVariableBinding;
-import org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
-import org.eclipse.jdt.internal.compiler.lookup.MethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.MethodScope;
-import org.eclipse.jdt.internal.compiler.lookup.ParameterizedGenericMethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ParameterizedTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.PolyTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ProblemMethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.ProblemReasons;
-import org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
-import org.eclipse.jdt.internal.compiler.lookup.Scope;
-import org.eclipse.jdt.internal.compiler.lookup.SourceTypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.Substitution;
-import org.eclipse.jdt.internal.compiler.lookup.Substitution.NullSubstitution;
-import org.eclipse.jdt.internal.compiler.lookup.SyntheticArgumentBinding;
-import org.eclipse.jdt.internal.compiler.lookup.SyntheticMethodBinding;
-import org.eclipse.jdt.internal.compiler.lookup.TagBits;
-import org.eclipse.jdt.internal.compiler.lookup.TypeBinding;
-import org.eclipse.jdt.internal.compiler.lookup.TypeConstants;
-import org.eclipse.jdt.internal.compiler.lookup.TypeIds;
-import org.eclipse.jdt.internal.compiler.lookup.WildcardBinding;
+import org.eclipse.jdt.internal.compiler.lookup.*;
 import org.eclipse.jdt.internal.compiler.lookup.Scope.Substitutor;
+import org.eclipse.jdt.internal.compiler.lookup.Substitution.NullSubstitution;
 import org.eclipse.jdt.internal.compiler.parser.Parser;
 import org.eclipse.jdt.internal.compiler.problem.AbortCompilation;
 import org.eclipse.jdt.internal.compiler.problem.AbortCompilationUnit;
@@ -129,7 +102,6 @@ public class LambdaExpression extends FunctionalExpression implements IPolyExpre
 	private boolean assistNode = false;
 	private ReferenceBinding classType;
 	private Set thrownExceptions;
-	public boolean containsSwitchWithTry = false;
 	private static final SyntheticArgumentBinding [] NO_SYNTHETIC_ARGUMENTS = new SyntheticArgumentBinding[0];
 	private static final Block NO_BODY = new Block(0);
 	private HashMap<TypeBinding, LambdaExpression> copiesPerTargetType;
@@ -139,6 +111,7 @@ public class LambdaExpression extends FunctionalExpression implements IPolyExpre
 	public boolean argumentsTypeVar = false;
 	int firstLocalLocal; // analysis index of first local variable (if any) post parameter(s) in the lambda; ("local local" as opposed to "outer local")
 
+	private List<ClassScope> scopesInEarlyConstruction;
 
 	public LambdaExpression(CompilationResult compilationResult, boolean assistNode, boolean requiresGenericSignature) {
 		super(compilationResult);
@@ -235,7 +208,7 @@ public class LambdaExpression extends FunctionalExpression implements IPolyExpre
 		}
 		int invokeDynamicNumber = codeStream.classFile.recordBootstrapMethod(this);
 		codeStream.invokeDynamic(invokeDynamicNumber, (this.shouldCaptureInstance ? 1 : 0) + this.outerLocalVariablesSlotSize, 1, this.descriptor.selector, signature.toString().toCharArray(),
-				this.resolvedType.id, this.resolvedType);
+				this.resolvedType);
 		if (!valueRequired)
 			codeStream.pop();
 		codeStream.recordPositionsFrom(pc, this.sourceStart);
@@ -286,6 +259,7 @@ public class LambdaExpression extends FunctionalExpression implements IPolyExpre
 				return new PolyTypeBinding(this);
 			}
 		}
+		this.scopesInEarlyConstruction = blockScope.collectClassesBeingInitialized();
 
 		MethodScope methodScope = blockScope.methodScope();
 		this.scope = new MethodScope(blockScope, this, methodScope.isStatic, methodScope.lastVisibleFieldID);
@@ -760,6 +734,7 @@ public class LambdaExpression extends FunctionalExpression implements IPolyExpre
 		return printExpression(tab, output, false);
 	}
 
+	@Override
 	public StringBuilder printExpression(int tab, StringBuilder output, boolean makeShort) {
 		int parenthesesCount = (this.bits & ASTNode.ParenthesizedMASK) >> ASTNode.ParenthesizedSHIFT;
 		String suffix = ""; //$NON-NLS-1$
@@ -1284,21 +1259,30 @@ public class LambdaExpression extends FunctionalExpression implements IPolyExpre
 			}
 		}
 		codeStream.pushPatternAccessTrapScope(this.scope);
-		if (this.body instanceof Block) {
-			boolean prev = codeStream.stmtInPreConContext;
-			codeStream.stmtInPreConContext = this.inPreConstructorContext;
-			this.body.generateCode(this.scope, codeStream);
-			codeStream.stmtInPreConContext = prev;
-			if ((this.bits & ASTNode.NeedFreeReturn) != 0) {
-				codeStream.return_();
-			}
-		} else {
-			Expression expression = (Expression) this.body;
-			expression.generateCode(this.scope, codeStream, true);
-			if (this.binding.returnType == TypeBinding.VOID) {
-				codeStream.return_();
+		if (this.scopesInEarlyConstruction != null) {
+			// JEP 482: restore early construction context info into scopes:
+			for (ClassScope classScope : this.scopesInEarlyConstruction)
+				classScope.insideEarlyConstructionContext = true;
+		}
+		try {
+			if (this.body instanceof Block) {
+				this.body.generateCode(this.scope, codeStream);
+				if ((this.bits & ASTNode.NeedFreeReturn) != 0) {
+					codeStream.return_();
+				}
 			} else {
-				codeStream.generateReturnBytecode(expression);
+				Expression expression = (Expression) this.body;
+				expression.generateCode(this.scope, codeStream, true);
+				if (this.binding.returnType == TypeBinding.VOID) {
+					codeStream.return_();
+				} else {
+					codeStream.generateReturnBytecode(expression);
+				}
+			}
+		} finally {
+			if (this.scopesInEarlyConstruction != null) {
+				for (ClassScope classScope : this.scopesInEarlyConstruction)
+					classScope.insideEarlyConstructionContext = false;
 			}
 		}
 		// See https://github.com/eclipse-jdt/eclipse.jdt.core/issues/1796#issuecomment-1933458054

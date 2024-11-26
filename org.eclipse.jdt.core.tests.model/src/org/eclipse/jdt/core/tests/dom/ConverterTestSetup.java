@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jdt.core.IClassFile;
@@ -25,70 +25,9 @@ import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.compiler.IProblem;
-import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTParser;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
-import org.eclipse.jdt.core.dom.Annotation;
-import org.eclipse.jdt.core.dom.AnnotationTypeDeclaration;
-import org.eclipse.jdt.core.dom.AnnotationTypeMemberDeclaration;
-import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
-import org.eclipse.jdt.core.dom.ArrayAccess;
-import org.eclipse.jdt.core.dom.ArrayCreation;
-import org.eclipse.jdt.core.dom.ArrayInitializer;
-import org.eclipse.jdt.core.dom.ArrayType;
-import org.eclipse.jdt.core.dom.Assignment;
-import org.eclipse.jdt.core.dom.Block;
-import org.eclipse.jdt.core.dom.BodyDeclaration;
-import org.eclipse.jdt.core.dom.BooleanLiteral;
-import org.eclipse.jdt.core.dom.CastExpression;
-import org.eclipse.jdt.core.dom.CharacterLiteral;
-import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.ConditionalExpression;
-import org.eclipse.jdt.core.dom.Dimension;
-import org.eclipse.jdt.core.dom.EnumDeclaration;
-import org.eclipse.jdt.core.dom.ExpressionStatement;
-import org.eclipse.jdt.core.dom.FieldAccess;
-import org.eclipse.jdt.core.dom.FieldDeclaration;
-import org.eclipse.jdt.core.dom.ImportDeclaration;
-import org.eclipse.jdt.core.dom.InfixExpression;
-import org.eclipse.jdt.core.dom.Initializer;
-import org.eclipse.jdt.core.dom.InstanceofExpression;
-import org.eclipse.jdt.core.dom.MarkerAnnotation;
-import org.eclipse.jdt.core.dom.MemberRef;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.MethodRef;
-import org.eclipse.jdt.core.dom.ModuleDeclaration;
-import org.eclipse.jdt.core.dom.NormalAnnotation;
-import org.eclipse.jdt.core.dom.NullLiteral;
-import org.eclipse.jdt.core.dom.NumberLiteral;
-import org.eclipse.jdt.core.dom.PackageDeclaration;
-import org.eclipse.jdt.core.dom.ParameterizedType;
-import org.eclipse.jdt.core.dom.ParenthesizedExpression;
-import org.eclipse.jdt.core.dom.PostfixExpression;
-import org.eclipse.jdt.core.dom.PrefixExpression;
-import org.eclipse.jdt.core.dom.PrimitiveType;
-import org.eclipse.jdt.core.dom.QualifiedName;
-import org.eclipse.jdt.core.dom.QualifiedType;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.SimpleType;
-import org.eclipse.jdt.core.dom.SingleMemberAnnotation;
-import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
-import org.eclipse.jdt.core.dom.StringLiteral;
-import org.eclipse.jdt.core.dom.SuperFieldAccess;
-import org.eclipse.jdt.core.dom.SuperMethodInvocation;
-import org.eclipse.jdt.core.dom.ThisExpression;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
-import org.eclipse.jdt.core.dom.TypeDeclarationStatement;
-import org.eclipse.jdt.core.dom.TypeLiteral;
-import org.eclipse.jdt.core.dom.TypeParameter;
-import org.eclipse.jdt.core.dom.VariableDeclarationExpression;
-import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
-import org.eclipse.jdt.core.dom.WildcardType;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.tests.util.Util;
+import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 
 @SuppressWarnings("rawtypes")
 public abstract class ConverterTestSetup extends AbstractASTTests {
@@ -133,7 +72,7 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 	}
 
 	protected IPath getConverterJCLPath() {
-		return getConverterJCLPath(""); //$NON-NLS-1$
+		return getConverterJCLPath(CompilerOptions.getFirstSupportedJavaVersion()); //$NON-NLS-1$
 	}
 
 	protected IPath getConverterJCLPath(String compliance) {
@@ -141,7 +80,7 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 	}
 
 	protected IPath getConverterJCLSourcePath() {
-		return getConverterJCLSourcePath(""); //$NON-NLS-1$
+		return getConverterJCLSourcePath(CompilerOptions.getFirstSupportedJavaVersion()); //$NON-NLS-1$
 	}
 
 	protected IPath getConverterJCLSourcePath(String compliance) {
@@ -176,6 +115,7 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 			this.deleteProject("Converter_19"); //$NON-NLS-1$
 			this.deleteProject("Converter_21"); //$NON-NLS-1$
 			this.deleteProject("Converter_22"); //$NON-NLS-1$
+			this.deleteProject("Converter_23"); //$NON-NLS-1$
 			PROJECT_SETUP = false;
 		} else {
 			TEST_SUITES.remove(getClass());
@@ -197,6 +137,7 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 				this.deleteProject("Converter_19"); //$NON-NLS-1$
 				this.deleteProject("Converter_21"); //$NON-NLS-1$
 				this.deleteProject("Converter_22"); //$NON-NLS-1$
+				this.deleteProject("Converter_23"); //$NON-NLS-1$
 				PROJECT_SETUP = false;
 			}
 		}
@@ -210,24 +151,7 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 			 super.setUpJCLClasspathVariables(compliance, useFullJCL);
 			 return;
 		}
-		if ("1.5".equals(compliance)
-				|| "1.6".equals(compliance)) {
-			if (JavaCore.getClasspathVariable("CONVERTER_JCL15_LIB") == null) {
-				setupExternalJCL("converterJclMin1.5");
-				JavaCore.setClasspathVariables(
-					new String[] {"CONVERTER_JCL15_LIB", "CONVERTER_JCL15_SRC", "CONVERTER_JCL15_SRCROOT"},
-					new IPath[] {getConverterJCLPath(compliance), getConverterJCLSourcePath(compliance), getConverterJCLRootSourcePath()},
-					null);
-			}
-		} else if ("1.7".equals(compliance)) {
-			if (JavaCore.getClasspathVariable("CONVERTER_JCL17_LIB") == null) {
-				setupExternalJCL("converterJclMin1.7");
-				JavaCore.setClasspathVariables(
-					new String[] {"CONVERTER_JCL17_LIB", "CONVERTER_JCL17_SRC", "CONVERTER_JCL17_SRCROOT"},
-					new IPath[] {getConverterJCLPath("1.7"), getConverterJCLSourcePath("1.7"), getConverterJCLRootSourcePath()},
-					null);
-			}
-		} else if ("1.8".equals(compliance)) {
+		if ("1.8".equals(compliance)) {
 			if (JavaCore.getClasspathVariable("CONVERTER_JCL18_LIB") == null) {
 				setupExternalJCL("converterJclMin1.8");
 				JavaCore.setClasspathVariables(
@@ -283,6 +207,14 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 						new IPath[] {getConverterJCLPath("14"), getConverterJCLSourcePath("14"), getConverterJCLRootSourcePath()},
 						null);
 			}
+		} else if ("15".equals(compliance)) {
+			if (JavaCore.getClasspathVariable("CONVERTER_JCL15_LIB") == null) {
+				setupExternalJCL("converterJclMin15");
+				JavaCore.setClasspathVariables(
+						new String[] {"CONVERTER_JCL15_LIB", "CONVERTER_JCL15_SRC", "CONVERTER_JCL15_SRCROOT"},
+						new IPath[] {getConverterJCLPath("15"), getConverterJCLSourcePath("15"), getConverterJCLRootSourcePath()},
+						null);
+			}
 		} else if ("17".equals(compliance)) {
 			if (JavaCore.getClasspathVariable("CONVERTER_JCL_17_LIB") == null) {
 				setupExternalJCL("converterJclMin17");
@@ -307,7 +239,16 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 						new IPath[] {getConverterJCLPath("21"), getConverterJCLSourcePath("21"), getConverterJCLRootSourcePath()},
 						null);
 			}
-		} else if (JavaCore.getClasspathVariable("CONVERTER_JCL_LIB") == null) {
+		}  else if ("22".equals(compliance)) {
+			if (JavaCore.getClasspathVariable("CONVERTER_JCL_22_LIB") == null) {
+				setupExternalJCL("converterJclMin22");
+				JavaCore.setClasspathVariables(
+						new String[] {"CONVERTER_JCL_22_LIB", "CONVERTER_JCL_22_SRC", "CONVERTER_JCL_22_SRCROOT"},
+						new IPath[] {getConverterJCLPath("22"), getConverterJCLSourcePath("22"), getConverterJCLRootSourcePath()},
+						null);
+			}
+		}
+		else if (JavaCore.getClasspathVariable("CONVERTER_JCL_LIB") == null) {
 			setupExternalJCL("converterJclMin");
 			JavaCore.setClasspathVariables(
 				new String[] {"CONVERTER_JCL_LIB", "CONVERTER_JCL_SRC", "CONVERTER_JCL_SRCROOT"},
@@ -324,11 +265,11 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 		super.setUpSuite();
 
 		if (!PROJECT_SETUP) {
-			setUpJavaProject("Converter"); //$NON-NLS-1$
-			setUpJavaProject("Converter15", "1.5"); //$NON-NLS-1$ //$NON-NLS-2$
-			setUpJavaProject("Converter16", "1.6"); //$NON-NLS-1$ //$NON-NLS-2$
-			setUpJavaProject("Converter17", "1.7"); //$NON-NLS-1$ //$NON-NLS-2$
-			setUpJavaProject("Converter18", "1.8"); //$NON-NLS-1$ //$NON-NLS-2$
+			setUpJavaProject("Converter", CompilerOptions.getFirstSupportedJavaVersion()); //$NON-NLS-1$
+			setUpJavaProject("Converter15", CompilerOptions.getFirstSupportedJavaVersion()); //$NON-NLS-1$ //$NON-NLS-2$
+			setUpJavaProject("Converter16", CompilerOptions.getFirstSupportedJavaVersion()); //$NON-NLS-1$ //$NON-NLS-2$
+			setUpJavaProject("Converter17", CompilerOptions.getFirstSupportedJavaVersion()); //$NON-NLS-1$ //$NON-NLS-2$
+			setUpJavaProject("Converter18", CompilerOptions.getFirstSupportedJavaVersion()); //$NON-NLS-1$ //$NON-NLS-2$
 			setUpJavaProject("Converter9", "9"); //$NON-NLS-1$ //$NON-NLS-2$
 			setUpJavaProject("Converter10", "10"); //$NON-NLS-1$ //$NON-NLS-2$
 			setUpJavaProject("Converter11", "11"); //$NON-NLS-1$ //$NON-NLS-2$
@@ -341,9 +282,18 @@ public abstract class ConverterTestSetup extends AbstractASTTests {
 			setUpJavaProject("Converter_19", "19"); //$NON-NLS-1$ //$NON-NLS-2$
 			setUpJavaProject("Converter_21", "21"); //$NON-NLS-1$ //$NON-NLS-2$
 			setUpJavaProject("Converter_22", "22"); //$NON-NLS-1$ //$NON-NLS-2$
+			setUpJavaProject("Converter_23", "23"); //$NON-NLS-1$ //$NON-NLS-2$
 			waitUntilIndexesReady(); // needed to find secondary types
 			PROJECT_SETUP = true;
 		}
+	}
+
+	protected IJavaProject setUpJavaProject(final String projectName, String compliance) throws CoreException, IOException {
+		this.currentProject =  setUpJavaProject(projectName, compliance, false);
+		if(CompilerOptions.getFirstSupportedJavaVersion().equals(compliance)) {
+			this.currentProject.setOption(JavaCore.COMPILER_PB_RAW_TYPE_REFERENCE, JavaCore.IGNORE);
+		}
+		return this.currentProject;
 	}
 
 	protected void assertExtraDimensionsEqual(String message, List dimensions, String expected) {
