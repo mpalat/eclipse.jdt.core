@@ -1907,6 +1907,8 @@ public final class CompletionEngine
 			completionOnMethodName(astNode, scope);
 		} else if (astNode instanceof CompletionOnFieldName) {
 			completionOnFieldName(astNode, scope);
+		} else if (astNode instanceof CompletionOnExpressionOfType) {
+			completionOnExpressionOfType(astNode, qualifiedBinding, scope);
 		} else if (astNode instanceof CompletionOnRecordComponentName) {
 			completionOnRecordComponentName(astNode, scope);
 		} else if (astNode instanceof CompletionOnLocalName) {
@@ -3372,6 +3374,35 @@ public final class CompletionEngine
 		}
 	}
 
+
+	private void completionOnExpressionOfType(ASTNode astNode, Binding qualifiedBinding, Scope scope) {
+		CompletionOnExpressionOfType completion = (CompletionOnExpressionOfType) astNode;
+
+		// Resolve the method call's return type
+		TypeBinding receiverType = completion.methodCall.resolveType((BlockScope) scope);
+
+		if (receiverType != null && receiverType.isValidBinding()) {
+			// Propose all accessible fields and methods of the return type
+			this.completionToken = completion.token;
+			findFieldsAndMethods(
+					this.completionToken,
+					receiverType,
+					scope,
+					new ObjectVector(),
+					new ObjectVector(),
+					completion,
+					scope,
+					false, // not in javadoc
+					false, // not exact match
+					null,
+					null,
+					null,
+					false,
+					null,
+					-1,
+					-1);
+		}
+	}
 
 	private void completionOnMethodName(ASTNode astNode, Scope scope) {
 		if (!this.requestor.isIgnored(CompletionProposal.VARIABLE_DECLARATION)) {
@@ -5671,9 +5702,7 @@ public final class CompletionEngine
 					isQualified ?
 							CharOperation.concat(currentType.qualifiedPackageName(), currentType.qualifiedSourceName(), '.') :
 								currentType.sourceName();
-				if (this.source != null
-							&& this.source.length > this.endPosition
-							&& this.source[this.endPosition] == '(') {
+				if (omitParanthesis()) {
 					completion = CharOperation.NO_CHAR;
 				} else {
 					completion = new char[] { '(', ')' };
@@ -6054,9 +6083,7 @@ public final class CompletionEngine
 								isQualified ?
 										CharOperation.concat(currentType.qualifiedPackageName(), currentType.qualifiedSourceName(), '.') :
 											currentType.sourceName();
-							if (this.source != null
-										&& this.source.length > this.endPosition
-										&& this.source[this.endPosition] == '(') {
+							if (omitParanthesis()) {
 								completion = CharOperation.NO_CHAR;
 							} else {
 								completion = new char[] { '(', ')' };
@@ -6217,9 +6244,7 @@ public final class CompletionEngine
 											CharOperation.concat(currentType.qualifiedPackageName(), currentType.qualifiedSourceName(), '.') :
 												currentType.sourceName();
 
-								if (this.source != null
-											&& this.source.length > this.endPosition
-											&& this.source[this.endPosition] == '(') {
+								if (omitParanthesis()) {
 									completion = CharOperation.NO_CHAR;
 								} else {
 									completion = new char[] { '(', ')' };
@@ -6955,9 +6980,7 @@ public final class CompletionEngine
 					char[][] parameterNames = findMethodParameterNames(constructor,parameterTypeNames);
 
 					char[] completion = CharOperation.NO_CHAR;
-					if (this.source != null
-						&& this.source.length > this.endPosition
-						&& this.source[this.endPosition] == '(')
+					if (omitParanthesis())
 						completion = name;
 					else
 						completion = CharOperation.concat(name, new char[] { '(', ')' });
@@ -7160,6 +7183,8 @@ public final class CompletionEngine
 			if(prefixRequired || this.options.forceImplicitQualification){
 				char[] prefix = computePrefix(scope.enclosingSourceType(), invocationScope.enclosingSourceType(), field.isStatic());
 				completion = CharOperation.concat(prefix,completion,'.');
+			} else if (invocationSite instanceof CompletionOnExpressionOfType) {
+				completion = CharOperation.concat(new char[] {'.'}, completion);
 			}
 
 
@@ -7576,9 +7601,7 @@ public final class CompletionEngine
 					relevance += computeRelevanceForMissingElements(missingElementsHaveProblems);
 				}
 				char[] completion;
-				if (this.source != null
-					&& this.source.length > this.endPosition
-					&& this.source[this.endPosition] == '(') {
+				if (omitParanthesis()) {
 					completion = cloneMethod;
 					} else {
 					completion = CharOperation.concat(cloneMethod, new char[] { '(', ')' });
@@ -9550,9 +9573,7 @@ public final class CompletionEngine
 				if (!exactMatch) {
 					if (completionOnReferenceExpressionName)
 						completion = method.selector;
-					else if (this.source != null
-						&& this.source.length > this.endPosition
-						&& this.source[this.endPosition] == '(')
+					else if (omitParanthesis())
 						completion = method.selector;
 					else
 						completion = CharOperation.concat(method.selector, new char[] { '(', ')' });
@@ -9572,6 +9593,8 @@ public final class CompletionEngine
 				if(prefixRequired || this.options.forceImplicitQualification){
 					char[] prefix = computePrefix(scope.enclosingSourceType(), invocationScope.enclosingSourceType(), method.isStatic());
 					completion = CharOperation.concat(prefix,completion,'.');
+				} else if (invocationSite instanceof CompletionOnExpressionOfType) {
+					completion = CharOperation.concat(new char[] {'.'}, completion);
 				}
 			}
 
@@ -9941,9 +9964,7 @@ public final class CompletionEngine
 				int previousStartPosition = this.startPosition;
 				int previousTokenStart = this.tokenStart;
 
-				if (this.source != null
-					&& this.source.length > this.endPosition
-					&& this.source[this.endPosition] == '(') {
+				if (omitParanthesis()) {
 					completion = method.selector;
 				} else {
 					completion = CharOperation.concat(method.selector, new char[] { '(', ')' });
@@ -10183,9 +10204,7 @@ public final class CompletionEngine
 			int previousTokenStart = this.tokenStart;
 
 			if (!exactMatch) {
-				if (this.source != null
-					&& this.source.length > this.endPosition
-					&& this.source[this.endPosition] == '(') {
+				if (omitParanthesis()) {
 					completion = method.selector;
 				} else {
 					completion = CharOperation.concat(method.selector, new char[] { '(', ')' });
@@ -14060,7 +14079,11 @@ public final class CompletionEngine
 			buffer.append('\t');
 		}
 	}
-
+	private boolean omitParanthesis() {
+		return this.source != null
+				&& this.source.length > this.endPosition
+				&& (this.source[this.endPosition] == '(' || this.source[this.endPosition] == '<');
+	}
 	private void proposeConstructor(AcceptedConstructor deferredProposal, Scope scope) {
 		if (deferredProposal.proposeConstructor) {
 			proposeConstructor(
@@ -14154,9 +14177,7 @@ public final class CompletionEngine
 		}
 
 		char[] completion;
-		if (this.source != null
-					&& this.source.length > this.endPosition
-					&& this.source[this.endPosition] == '(') {
+		if (omitParanthesis()) {
 			completion = CharOperation.NO_CHAR;
 		} else {
 			completion = new char[] { '(', ')' };

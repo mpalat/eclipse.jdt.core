@@ -2320,7 +2320,7 @@ public void detectWrapperResource() {
 	}
 }
 
-private MethodBinding[] getFunctionalInterfaceAbstractContracts(Scope scope, boolean replaceWildcards) throws DysfunctionalInterfaceException {
+public MethodBinding[] getFunctionalInterfaceAbstractContracts(Scope scope, boolean replaceWildcards) throws DysfunctionalInterfaceException {
 
 	LookupEnvironment environment = scope.environment();
 	boolean isAnnotationBasedNullAnalysisEnabled = environment.globalOptions.isAnnotationBasedNullAnalysisEnabled;
@@ -2534,6 +2534,16 @@ public static boolean isConsistentIntersection(TypeBinding[] intersectingTypes, 
 			mostSpecific = current;
 		else
 			return false;
+	}
+	if (mostSpecific.isArrayType()) {
+		// Apart from array supertypes, an array subtype implements only Cloneable and Serializable.
+		for (TypeBinding intersectingType : intersectingTypes) {
+			if (intersectingType.isTypeVariable() || intersectingType.isWildcard()
+					|| !intersectingType.isProperType(true))
+				return false;
+			if (!mostSpecific.isSubtypeOf(intersectingType, simulatingBugJDK8026527))
+				return false;
+		}
 	}
 	return true;
 }

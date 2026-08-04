@@ -523,7 +523,7 @@ public void test009(){
         "2. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 6)\n" +
         "	KO ko;\n" +
         "	^^\n" +
-        "Access restriction: The type \'KO\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+        "Access restriction: The type \'KO\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
         "----------\n" +
         "3. ERROR in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 7)\n" +
         "	Zork z;\n" +
@@ -1428,6 +1428,51 @@ public void test017c(){
         EMPTY_STRING_MATCHER,
         true);
 }
+// specific errors for unsuitable files on -bootclasspath, -endorseddirs etc.
+public void test017d(){
+	this.runTest(
+		true,
+		new String[] {
+			"X.java",
+			"/** */\n" +
+			"public class X {\n" +
+			"	// empty\n" +
+			"}",
+			"not.zip",
+			"not a zip archive\n",
+		},
+		"\"" + OUTPUT_DIR +  File.separator + "X.java\""
+		+ " -1.8 -g -preserveAllLocals"
+		+ " -bootclasspath \"" + OUTPUT_DIR + File.separator + "not.zip\""
+		+ File.pathSeparator + getLibraryClassesAsQuotedString()
+		+ " -endorseddirs \"" + OUTPUT_DIR + "\""
+		+ " -verbose -proceedOnError -referenceInfo"
+		+ " -d \"" + OUTPUT_DIR + "\"",
+		ONE_FILE_GENERATED_MATCHER,
+		new Matcher() {
+			@Override
+			boolean match(String effective) {
+				lines: for (String line : effective.replace("\r\n", "\n").split("\n")) {
+					if (line.startsWith("File provided via -endorseddirs is not a valid jar:")) {
+						for (String suffix : new String[] {"test017dout.txt", "test017derr.txt", "not.zip"} ) {
+							if (line.endsWith(suffix))
+								continue lines;
+						}
+					} else if (line.startsWith("File provided via -bootclasspath is not a valid jar:")) {
+						if (line.endsWith("not.zip"))
+							continue lines;
+					}
+					return false;
+				}
+				return true;
+			}
+			@Override
+			String expected() {
+				return "";
+			}
+		},
+		true);
+}
 // command line - unusual classpath (empty)
 // ok provided we explicit the sourcepath
 public void test018a(){
@@ -1584,7 +1629,7 @@ public void test019(){
 			"2. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 6)\n" +
 			"	KO ko;\n" +
 			"	^^\n" +
-			"Access restriction: The type \'KO\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+			"Access restriction: The type \'KO\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
 			"----------\n" +
 			"3. ERROR in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 7)\n" +
 			"	Zork z;\n" +
@@ -1888,7 +1933,7 @@ public void test027(){
         "2. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 6)\n" +
         "	KO ko;\n" +
         "	^^\n" +
-        "Access restriction: The type \'KO\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+        "Access restriction: The type \'KO\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
         "----------\n" +
         "3. ERROR in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 7)\n" +
         "	Zork z;\n" +
@@ -2616,7 +2661,7 @@ public void test040(){
         "1. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/Y.java (at line 4)\n" +
         "	p.Z z;\n" +
         "	^^^\n" +
-        "Access restriction: The type \'Z\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+        "Access restriction: The type \'Z\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
         "----------\n" +
         "1 problem (1 warning)\n",
         false);
@@ -2665,7 +2710,7 @@ public void test041(){
         "1. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/Y.java (at line 4)\n" +
         "	p.Z z;\n" +
         "	^^^\n" +
-        "Access restriction: The type \'Z\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+        "Access restriction: The type \'Z\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
         "----------\n" +
         "1 problem (1 warning)\n",
         false);
@@ -3682,7 +3727,7 @@ public void test073_per_source_output_directory(){
 		"1. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/Z.java (at line 2)\n" +
 		"	X f;\n" +
 		"	^\n" +
-		"Access restriction: The type \'X\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---/src1\')\n" +
+		"Access restriction: The type \'X\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---/src1\')\n" +
 		"----------\n" +
 		"1 problem (1 warning)\n",
 		true);
@@ -3871,7 +3916,7 @@ public void test079_per_source_output_directory(){
 		"1. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/Z.java (at line 2)\n" +
 		"	X f;\n" +
 		"	^\n" +
-		"Access restriction: The type \'X\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---/src1\')\n" +
+		"Access restriction: The type \'X\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---/src1\')\n" +
 		"----------\n" +
 		"1 problem (1 warning)\n",
 		true);
@@ -4065,7 +4110,7 @@ public void test085_per_source_output_directory(){
 		"1. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/Z.java (at line 2)\n" +
 		"	X f;\n" +
 		"	^\n" +
-		"Access restriction: The type \'X\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---/src1\')\n" +
+		"Access restriction: The type \'X\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---/src1\')\n" +
 		"----------\n" +
 		"1 problem (1 warning)\n",
 		true);
@@ -5096,27 +5141,27 @@ public void test148_access_restrictions(){
   "1. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 3)\n" +
   "	KO ko;\n" +
   "	^^\n" +
-  "Access restriction: The type \'KO\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+  "Access restriction: The type \'KO\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
   "----------\n" +
   "2. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 5)\n" +
   "	ko = new KO();\n" +
   "	         ^^\n" +
-  "Access restriction: The type \'KO\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+  "Access restriction: The type \'KO\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
   "----------\n" +
   "3. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 5)\n" +
   "	ko = new KO();\n" +
   "	         ^^\n" +
-  "Access restriction: The constructor \'KO()\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+  "Access restriction: The constructor \'KO()\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
   "----------\n" +
   "4. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 6)\n" +
   "	ko.bar();\n" +
   "	   ^^^\n" +
-  "Access restriction: The method \'KO.bar()\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+  "Access restriction: The method \'KO.bar()\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
   "----------\n" +
   "5. WARNING in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 7)\n" +
   "	if (ko.m) {}\n" +
   "	       ^\n" +
-  "Access restriction: The field \'KO.m\' is not API (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
+  "Access restriction: The field \'KO.m\' is not accessible (restriction on classpath entry \'---OUTPUT_DIR_PLACEHOLDER---\')\n" +
   "----------\n" +
   "6. ERROR in ---OUTPUT_DIR_PLACEHOLDER---/X.java (at line 9)\n" +
   "	Zork z;\n" +
